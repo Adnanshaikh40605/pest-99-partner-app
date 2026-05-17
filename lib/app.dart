@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
-import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 
 class Pest99PartnerApp extends StatelessWidget {
-  const Pest99PartnerApp({super.key});
+  const Pest99PartnerApp({super.key, required this.router});
+
+  final GoRouter router;
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +14,7 @@ class Pest99PartnerApp extends StatelessWidget {
       title: 'Pest 99 Partner',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      routerConfig: AppRouter.router,
+      routerConfig: router,
     );
   }
 }

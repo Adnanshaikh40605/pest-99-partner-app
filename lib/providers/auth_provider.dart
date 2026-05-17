@@ -10,13 +10,16 @@ class AuthProvider extends ChangeNotifier {
   bool _loading = false;
   String? _error;
   bool _loggedIn = false;
+  bool _ready = false;
 
   bool get loading => _loading;
   String? get error => _error;
   bool get loggedIn => _loggedIn;
+  bool get ready => _ready;
 
   Future<void> init() async {
     _loggedIn = await _auth.hasSession();
+    _ready = true;
     notifyListeners();
   }
 

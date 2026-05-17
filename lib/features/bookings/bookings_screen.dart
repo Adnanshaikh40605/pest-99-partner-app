@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
-import '../../core/data/demo_data.dart';
+import '../../core/mappers/booking_mapper.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../providers/bookings_provider.dart';
 import '../../shared/widgets/app_top_bar.dart';
 import '../../shared/widgets/booking_cards.dart';
-import '../../shared/widgets/segmented_tabs.dart';
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
@@ -14,65 +16,100 @@ class BookingsScreen extends StatefulWidget {
 }
 
 class _BookingsScreenState extends State<BookingsScreen> {
-  int _tabIndex = 0;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BookingsProvider>().refreshAll();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bookings = _tabIndex == 0 ? DemoData.availableBookings : DemoData.acceptedBookings;
+    final bookings = context.watch<BookingsProvider>();
 
     return Scaffold(
       appBar: const AppTopBar(),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: RefreshIndicator(
+        onRefresh: bookings.refreshAll,
+        child: bookings.loading && bookings.available.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : _buildBody(context, bookings),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, BookingsProvider bookings) {
+    if (bookings.error != null && bookings.available.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          StickySegmentedHeader(
-            labels: const ['Available', 'Accepted'],
-            selectedIndex: _tabIndex,
-            onChanged: (i) => setState(() => _tabIndex = i),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenEdge,
-                AppSpacing.sectionGap,
-                AppSpacing.screenEdge,
-                100,
-              ),
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      _tabIndex == 0 ? 'New Bookings' : 'Accepted Jobs',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    Text(
-                      '${bookings.length} requests',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                          ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.elementGap),
-                ...bookings.map(
-                  (b) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.elementGap),
-                    child: _tabIndex == 0
-                        ? AvailableBookingCard(
-                            booking: b,
-                            onAccept: () {},
-                            onReject: () {},
-                          )
-                        : AcceptedBookingCard(booking: b),
-                  ),
-                ),
-              ],
-            ),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(bookings.error!, textAlign: TextAlign.center),
           ),
         ],
+      );
+    }
+
+    final list = bookings.available;
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenEdge,
+        AppSpacing.sectionGap,
+        AppSpacing.screenEdge,
+        100,
       ),
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('New Bookings', style: Theme.of(context).textTheme.headlineSmall),
+            Text('${list.length} requests'),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.elementGap),
+        if (list.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 48),
+            child: Center(child: Text('No new bookings right now')),
+          )
+        else
+          ...list.map((b) {
+            final ui = BookingMapper.fromPartner(b);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.elementGap),
+              child: AvailableBookingCard(
+                booking: ui,
+                onAccept: () async {
+                  final ok = await bookings.accept(b.id);
+                  if (!context.mounted) return;
+                  if (ok) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Job accepted')),
+                    );
+                    context.go('/accepted');
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(bookings.error ?? 'Accept failed')),
+                    );
+                  }
+                },
+                onReject: () async {
+                  final ok = await bookings.reject(b.id);
+                  if (!context.mounted) return;
+                  if (!ok) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(bookings.error ?? 'Reject failed')),
+                    );
+                  }
+                },
+              ),
+            );
+          }),
+      ],
     );
   }
 }

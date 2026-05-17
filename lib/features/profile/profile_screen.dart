@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/constants/app_assets.dart';
-import '../../core/data/demo_data.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/bookings_provider.dart';
 import '../../shared/widgets/app_top_bar.dart';
+
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final counts = context.watch<BookingsProvider>().counts;
+
     return Scaffold(
       appBar: const AppTopBar(showAvatar: false, centerLogo: true),
       body: ListView(
@@ -23,9 +28,18 @@ class ProfileScreen extends StatelessWidget {
         children: [
           _ProfileHeader(),
           const SizedBox(height: AppSpacing.sectionGap),
-          const _StatsGrid(),
+          _StatsGrid(
+            available: counts.available,
+            accepted: counts.accepted,
+            completed: counts.completed,
+          ),
           const SizedBox(height: AppSpacing.sectionGap),
-          _MenuList(onLogout: () => context.go('/login')),
+          _MenuList(
+            onLogout: () async {
+              await context.read<AuthProvider>().logout();
+              if (context.mounted) context.go('/login');
+            },
+          ),
         ],
       ),
     );
@@ -69,10 +83,10 @@ class _ProfileHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Text(DemoData.technicianName, style: Theme.of(context).textTheme.headlineMedium),
+          Text('Partner Technician', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 4),
           Text(
-            DemoData.technicianPhone,
+            'Pest 99 Partner App',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 12),
@@ -83,7 +97,7 @@ class _ProfileHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              DemoData.technicianRole,
+              'Active Partner',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.onPrimary),
             ),
           ),
@@ -94,15 +108,23 @@ class _ProfileHeader extends StatelessWidget {
 }
 
 class _StatsGrid extends StatelessWidget {
-  const _StatsGrid();
+  const _StatsGrid({
+    required this.available,
+    required this.accepted,
+    required this.completed,
+  });
+
+  final int available;
+  final int accepted;
+  final int completed;
 
   @override
   Widget build(BuildContext context) {
-    const stats = [
-      (Icons.work_outline, '124', 'Total Jobs', AppColors.primary),
-      (Icons.task_alt, '118', 'Completed', AppColors.successText),
-      (Icons.star, '4.8', 'Avg Rating', AppColors.warning),
-      (Icons.call, '12', 'Service Calls', AppColors.infoBlue),
+    final stats = [
+      (Icons.inbox_outlined, '$available', 'Available', AppColors.primary),
+      (Icons.assignment_turned_in_outlined, '$accepted', 'Accepted', AppColors.infoBlue),
+      (Icons.task_alt, '$completed', 'Completed', AppColors.successText),
+      (Icons.work_outline, '${available + accepted + completed}', 'All Jobs', AppColors.warning),
     ];
 
     return GridView.count(

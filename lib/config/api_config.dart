@@ -2,7 +2,7 @@
 class ApiConfig {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://pestcontrol-backend.onrender.com',
+    defaultValue: 'https://api.vacationbna.site',
   );
 
   static const String partnerPrefix = '/api/partner';

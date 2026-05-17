@@ -10,86 +10,109 @@ import '../../features/completed/completed_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/referral/refer_client_screen.dart';
 import '../../features/splash/splash_screen.dart';
+import '../../providers/auth_provider.dart';
 import '../../shared/widgets/app_bottom_nav.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 class AppRouter {
-  static final GoRouter router = GoRouter(
-    navigatorKey: rootNavigatorKey,
-    initialLocation: '/splash',
-    routes: [
-      GoRoute(
-        path: '/splash',
-        pageBuilder: (context, state) => _fadePage(state, const SplashScreen()),
-      ),
-      GoRoute(
-        path: '/login',
-        pageBuilder: (context, state) => _slidePage(state, const LoginScreen()),
-      ),
-      GoRoute(
-        path: '/register',
-        pageBuilder: (context, state) => _slidePage(state, const RegisterScreen()),
-      ),
-      StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) {
-          return MainShellScaffold(navigationShell: navigationShell);
-        },
-        branches: [
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/bookings',
-                pageBuilder: (context, state) => const NoTransitionPage(child: BookingsScreen()),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/accepted',
-                pageBuilder: (context, state) => const NoTransitionPage(child: AcceptedScreen()),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/completed',
-                pageBuilder: (context, state) => const NoTransitionPage(child: CompletedScreen()),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/profile',
-                pageBuilder: (context, state) => const NoTransitionPage(child: ProfileScreen()),
-              ),
-            ],
-          ),
-        ],
-      ),
-      GoRoute(
-        path: '/booking/:id',
-        parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) {
-          final id = state.pathParameters['id']!;
-          return _slidePage(state, BookingDetailScreen(bookingId: id));
-        },
-      ),
-      GoRoute(
-        path: '/refer-client',
-        parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) => _slidePage(state, const ReferClientScreen()),
-      ),
-      GoRoute(
-        path: '/referral-success',
-        parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) => _slidePage(state, const ReferralSuccessScreen()),
-      ),
-    ],
-  );
+  AppRouter(this._auth) {
+    router = GoRouter(
+      navigatorKey: rootNavigatorKey,
+      initialLocation: '/splash',
+      refreshListenable: _auth,
+      redirect: _redirect,
+      routes: [
+        GoRoute(
+          path: '/splash',
+          pageBuilder: (context, state) => _fadePage(state, const SplashScreen()),
+        ),
+        GoRoute(
+          path: '/login',
+          pageBuilder: (context, state) => _slidePage(state, const LoginScreen()),
+        ),
+        GoRoute(
+          path: '/register',
+          pageBuilder: (context, state) => _slidePage(state, const RegisterScreen()),
+        ),
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) {
+            return MainShellScaffold(navigationShell: navigationShell);
+          },
+          branches: [
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/bookings',
+                  pageBuilder: (context, state) => const NoTransitionPage(child: BookingsScreen()),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/accepted',
+                  pageBuilder: (context, state) => const NoTransitionPage(child: AcceptedScreen()),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/completed',
+                  pageBuilder: (context, state) => const NoTransitionPage(child: CompletedScreen()),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/profile',
+                  pageBuilder: (context, state) => const NoTransitionPage(child: ProfileScreen()),
+                ),
+              ],
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/booking/:id',
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (context, state) {
+            final id = int.parse(state.pathParameters['id']!);
+            return _slidePage(state, BookingDetailScreen(bookingId: id));
+          },
+        ),
+        GoRoute(
+          path: '/refer-client',
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (context, state) => _slidePage(state, const ReferClientScreen()),
+        ),
+        GoRoute(
+          path: '/referral-success',
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (context, state) => _slidePage(state, const ReferralSuccessScreen()),
+        ),
+      ],
+    );
+  }
+
+  final AuthProvider _auth;
+  late final GoRouter router;
+
+  String? _redirect(BuildContext context, GoRouterState state) {
+    if (!_auth.ready) return null;
+
+    final path = state.matchedLocation;
+    final onAuth = path == '/login' || path == '/register';
+    final onSplash = path == '/splash';
+
+    if (!_auth.loggedIn) {
+      if (onAuth || onSplash) return null;
+      return '/login';
+    }
+    if (onAuth || onSplash) return '/bookings';
+    return null;
+  }
 }
 
 CustomTransitionPage<void> _fadePage(GoRouterState state, Widget child) {

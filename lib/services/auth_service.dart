@@ -7,10 +7,19 @@ class AuthService {
 
   final ApiClient _api;
 
+  static String normalizeMobile(String mobile) {
+    final digits = mobile.replaceAll(RegExp(r'\D'), '');
+    if (digits.length > 10) return digits.substring(digits.length - 10);
+    return digits;
+  }
+
   Future<Map<String, dynamic>> login(String mobile, String password) async {
     final data = await _api.post(
       ApiConfig.login,
-      body: {'mobile': mobile, 'password': password},
+      body: {
+        'mobile': normalizeMobile(mobile),
+        'password': password,
+      },
       auth: false,
     );
     final token = data['access'] as String?;

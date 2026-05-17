@@ -1,10 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../providers/auth_provider.dart';
 import '../../shared/widgets/pest_logo.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -18,9 +18,14 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(milliseconds: 2400), () {
-      if (mounted) context.go('/login');
-    });
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    final auth = context.read<AuthProvider>();
+    if (!auth.ready) await auth.init();
+    if (!mounted) return;
+    context.go(auth.loggedIn ? '/bookings' : '/login');
   }
 
   @override
@@ -64,16 +69,12 @@ class _SplashScreenState extends State<SplashScreen> {
               bottom: 48,
               child: Column(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: SizedBox(
-                      width: 160,
-                      height: 6,
-                      child: LinearProgressIndicator(
-                        value: 0.4,
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.3),
-                        color: AppColors.onPrimary,
-                      ),
+                  const SizedBox(
+                    width: 160,
+                    height: 6,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Color(0x4DFFFFFF),
+                      color: AppColors.onPrimary,
                     ),
                   ),
                   const SizedBox(height: 12),

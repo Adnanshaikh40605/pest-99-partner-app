@@ -1,93 +1,92 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/app_spacing.dart';
+import '../../providers/auth_provider.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/pest_logo.dart';
 import '../../shared/widgets/primary_button.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _mobile = TextEditingController();
+  final _password = TextEditingController();
+
+  @override
+  void dispose() {
+    _mobile.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final auth = context.read<AuthProvider>();
+    final ok = await auth.login(_mobile.text.trim(), _password.text);
+    if (!mounted) return;
+    if (ok) {
+      context.go('/bookings');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(auth.error ?? 'Login failed')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge, vertical: 16),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.arrow_back),
-                  style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
-                ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
+          child: Column(
+            children: [
+              const SizedBox(height: 24),
+              const PestLogoCard(),
+              const SizedBox(height: 32),
+              Text('Welcome Back', style: Theme.of(context).textTheme.headlineLarge),
+              const SizedBox(height: 8),
+              Text(
+                'Sign in to your partner account',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
               ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenEdge),
-                child: Column(
-                  children: [
-                    const PestLogoCard(),
-                    const SizedBox(height: 32),
-                    Text('Welcome Back', style: Theme.of(context).textTheme.headlineLarge),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Sign in to your partner account',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                          ),
-                    ),
-                    const SizedBox(height: 40),
-                    const AppTextField(
-                      label: 'Phone Number',
-                      hint: 'Enter your phone number',
-                      keyboardType: TextInputType.phone,
-                    ),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    const AppTextField(
-                      label: 'Password',
-                      hint: 'Enter your password',
-                      obscureText: true,
-                    ),
-                    const SizedBox(height: AppSpacing.sectionGap),
-                    PrimaryButton(
-                      label: 'Login',
-                      onPressed: () => context.go('/bookings'),
-                    ),
-                    const SizedBox(height: 24),
-                    TextButton(
-                      onPressed: () => context.push('/register'),
-                      child: RichText(
-                        text: TextSpan(
-                          style: Theme.of(context).textTheme.bodyMedium,
-                          children: [
-                            TextSpan(
-                              text: "Don't have an account? ",
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                              ),
-                            ),
-                            TextSpan(
-                              text: 'Register',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                  ],
-                ),
+              const SizedBox(height: 40),
+              AppTextField(
+                label: 'Phone Number',
+                hint: 'Enter your phone number',
+                keyboardType: TextInputType.phone,
+                controller: _mobile,
               ),
-            ),
-          ],
+              const SizedBox(height: AppSpacing.sectionGap),
+              AppTextField(
+                label: 'Password',
+                hint: 'Enter your password',
+                obscureText: true,
+                controller: _password,
+              ),
+              const SizedBox(height: AppSpacing.sectionGap),
+              PrimaryButton(
+                label: auth.loading ? 'Signing in…' : 'Login',
+                onPressed: auth.loading ? null : _submit,
+              ),
+              const SizedBox(height: 24),
+              TextButton(
+                onPressed: () => context.push('/register'),
+                child: const Text('Create partner account'),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );
