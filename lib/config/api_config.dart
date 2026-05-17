@@ -1,0 +1,23 @@
+/// Backend API configuration — update [baseUrl] for your environment.
+class ApiConfig {
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://pestcontrol-backend.onrender.com',
+  );
+
+  static const String partnerPrefix = '/api/partner';
+
+  static String get register => '$partnerPrefix/register/';
+  static String get login => '$partnerPrefix/login/';
+  static String get profile => '$partnerPrefix/profile/';
+  static String get bookingCounts => '$partnerPrefix/bookings/counts/';
+  static String get availableBookings => '$partnerPrefix/bookings/available/';
+  static String get acceptedBookings => '$partnerPrefix/bookings/accepted/';
+  static String get completedBookings => '$partnerPrefix/bookings/completed/';
+
+  static String bookingDetail(int id) => '$partnerPrefix/bookings/$id/';
+  static String acceptBooking(int id) => '$partnerPrefix/bookings/$id/accept/';
+  static String rejectBooking(int id) => '$partnerPrefix/bookings/$id/reject/';
+  static String startBooking(int id) => '$partnerPrefix/bookings/$id/start/';
+  static String completeBooking(int id) => '$partnerPrefix/bookings/$id/complete/';
+}
