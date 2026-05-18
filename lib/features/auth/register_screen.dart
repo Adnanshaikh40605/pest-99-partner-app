@@ -1,16 +1,59 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/app_spacing.dart';
+import '../../providers/auth_provider.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/pest_logo.dart';
 import '../../shared/widgets/primary_button.dart';
 
-class RegisterScreen extends StatelessWidget {
+class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
   @override
+  State<RegisterScreen> createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final _name = TextEditingController();
+  final _mobile = TextEditingController();
+  final _password = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _mobile.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final auth = context.read<AuthProvider>();
+    final ok = await auth.register(
+      fullName: _name.text.trim(),
+      mobile: _mobile.text.trim(),
+      password: _password.text,
+    );
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Registered! Wait for CRM approval, then log in.'),
+        ),
+      );
+      context.go('/login');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(auth.error ?? 'Registration failed')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -31,34 +74,30 @@ class RegisterScreen extends StatelessWidget {
                     Text('Create Account', style: Theme.of(context).textTheme.headlineLarge),
                     const SizedBox(height: 4),
                     Text(
-                      'Join as a service partner to manage bookings.',
+                      'Register as a field technician. Admin will approve your app access on CRM.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                           ),
                     ),
                     const SizedBox(height: AppSpacing.sectionGap),
-                    const AppTextField(label: 'Full Name', hint: 'Enter your full name'),
-                    const SizedBox(height: AppSpacing.elementGap),
-                    const AppTextField(
-                      label: 'Mobile Number',
-                      hint: 'Enter your mobile number',
-                      keyboardType: TextInputType.phone,
+                    AppTextField(
+                      label: 'Full Name',
+                      hint: 'Enter your full name',
+                      controller: _name,
                     ),
                     const SizedBox(height: AppSpacing.elementGap),
-                    const AppTextField(
+                    AppTextField(
+                      label: 'Mobile Number',
+                      hint: '10 digit mobile number',
+                      keyboardType: TextInputType.phone,
+                      controller: _mobile,
+                    ),
+                    const SizedBox(height: AppSpacing.elementGap),
+                    AppTextField(
                       label: 'Password',
                       hint: 'Create a strong password',
                       obscureText: true,
-                    ),
-                    const SizedBox(height: AppSpacing.elementGap),
-                    AppDropdownField<String>(
-                      label: 'User Type',
-                      hint: 'Select your role',
-                      items: const [
-                        DropdownMenuItem(value: 'technician', child: Text('Technician')),
-                        DropdownMenuItem(value: 'admin', child: Text('Technician Admin')),
-                      ],
-                      onChanged: (_) {},
+                      controller: _password,
                     ),
                   ],
                 ),
@@ -79,8 +118,8 @@ class RegisterScreen extends StatelessWidget {
           border: const Border(top: BorderSide(color: Color(0x80E4E7EC))),
         ),
         child: PrimaryButton(
-          label: 'Create Account',
-          onPressed: () => context.go('/login'),
+          label: auth.loading ? 'Creating…' : 'Create Account',
+          onPressed: auth.loading ? null : _submit,
         ),
       ),
     );

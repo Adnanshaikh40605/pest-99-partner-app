@@ -35,6 +35,20 @@ class ApiClient {
     return _decode(res);
   }
 
+  Future<Map<String, dynamic>> put(
+    String path, {
+    Map<String, dynamic>? body,
+    bool auth = true,
+  }) async {
+    final headers = await _headers(auth);
+    final res = await _client.put(
+      _uri(path),
+      headers: headers,
+      body: body != null ? jsonEncode(body) : null,
+    );
+    return _decode(res);
+  }
+
   Future<Map<String, dynamic>> post(
     String path, {
     Map<String, dynamic>? body,

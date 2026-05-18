@@ -20,4 +20,5 @@ class ApiConfig {
   static String rejectBooking(int id) => '$partnerPrefix/bookings/$id/reject/';
   static String startBooking(int id) => '$partnerPrefix/bookings/$id/start/';
   static String completeBooking(int id) => '$partnerPrefix/bookings/$id/complete/';
+  static String get referClient => '$partnerPrefix/refer-client/';
 }

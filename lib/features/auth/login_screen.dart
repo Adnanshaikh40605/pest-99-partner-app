@@ -31,7 +31,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final ok = await auth.login(_mobile.text.trim(), _password.text);
     if (!mounted) return;
     if (ok) {
-      context.go('/bookings');
+      final approved = context.read<AuthProvider>().appApproved;
+      context.go(approved ? '/bookings' : '/pending-approval');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(auth.error ?? 'Login failed')),

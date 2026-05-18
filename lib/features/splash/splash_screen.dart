@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/api_client.dart';
 import '../../core/theme/app_colors.dart';
+import '../../services/profile_service.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../providers/auth_provider.dart';
 import '../../shared/widgets/pest_logo.dart';
@@ -25,7 +27,22 @@ class _SplashScreenState extends State<SplashScreen> {
     final auth = context.read<AuthProvider>();
     if (!auth.ready) await auth.init();
     if (!mounted) return;
-    context.go(auth.loggedIn ? '/bookings' : '/login');
+    if (auth.loggedIn) {
+      try {
+        final data = await ProfileService(context.read<ApiClient>()).getProfile();
+        await auth.refreshApprovalFromProfile(data);
+      } catch (_) {
+        /* offline or expired */
+      }
+    }
+    if (!mounted) return;
+    if (!auth.loggedIn) {
+      context.go('/login');
+    } else if (!auth.appApproved) {
+      context.go('/pending-approval');
+    } else {
+      context.go('/bookings');
+    }
   }
 
   @override

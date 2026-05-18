@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/accepted/accepted_screen.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/auth/pending_approval_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/booking_detail/booking_detail_screen.dart';
 import '../../features/bookings/bookings_screen.dart';
@@ -34,6 +35,10 @@ class AppRouter {
         GoRoute(
           path: '/register',
           pageBuilder: (context, state) => _slidePage(state, const RegisterScreen()),
+        ),
+        GoRoute(
+          path: '/pending-approval',
+          pageBuilder: (context, state) => _slidePage(state, const PendingApprovalScreen()),
         ),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) {
@@ -110,7 +115,12 @@ class AppRouter {
       if (onAuth || onSplash) return null;
       return '/login';
     }
-    if (onAuth || onSplash) return '/bookings';
+    final onPending = path == '/pending-approval';
+    if (!_auth.appApproved) {
+      if (onPending || onAuth || onSplash) return null;
+      return '/pending-approval';
+    }
+    if (onAuth || onSplash || onPending) return '/bookings';
     return null;
   }
 }
