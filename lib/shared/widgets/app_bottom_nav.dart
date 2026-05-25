@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/bookings_provider.dart';
 import '../../providers/notifications_provider.dart';
 
 enum AppNavTab { bookings, accepted, completed, profile }
@@ -180,7 +181,10 @@ class _MainShellScaffoldState extends State<MainShellScaffold> with WidgetsBindi
     if (!mounted) return;
     final auth = context.read<AuthProvider>();
     if (!auth.loggedIn || !auth.appApproved) return;
-    await context.read<NotificationsProvider>().load(force: true);
+    await Future.wait([
+      context.read<NotificationsProvider>().load(force: true),
+      context.read<BookingsProvider>().refreshAll(),
+    ]);
   }
 
   @override

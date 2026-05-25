@@ -32,7 +32,33 @@ class BookingsProvider extends ChangeNotifier {
 
   bool get isGlobalBusy => _processingIds.isNotEmpty;
 
-  Future<void> refreshAll() async {
+  static const _minRefreshGap = Duration(seconds: 8);
+
+  Future<void>? _refreshInFlight;
+  DateTime? _lastRefreshAt;
+
+  /// Loads counts + all booking lists. Coalesces duplicate calls (tabs / lifecycle).
+  Future<void> refreshAll({bool force = false}) async {
+    if (_refreshInFlight != null) {
+      return _refreshInFlight;
+    }
+    final now = DateTime.now();
+    if (!force &&
+        _lastRefreshAt != null &&
+        now.difference(_lastRefreshAt!) < _minRefreshGap) {
+      return;
+    }
+
+    _refreshInFlight = _refreshAllInternal();
+    try {
+      await _refreshInFlight;
+    } finally {
+      _refreshInFlight = null;
+      _lastRefreshAt = DateTime.now();
+    }
+  }
+
+  Future<void> _refreshAllInternal() async {
     loading = true;
     error = null;
     notifyListeners();
@@ -48,7 +74,11 @@ class BookingsProvider extends ChangeNotifier {
       accepted = results[2] as List<PartnerBooking>;
       completed = results[3] as List<PartnerBooking>;
     } on ApiException catch (e) {
-      error = e.message;
+      error = e.statusCode == 429
+          ? (e.retryAfterSeconds != null
+              ? 'Too many requests. Try again in ${e.retryAfterSeconds} seconds.'
+              : 'Too many requests. Please wait a minute and try again.')
+          : e.message;
     } catch (_) {
       error = 'Could not load bookings.';
     } finally {
@@ -61,8 +91,23 @@ class BookingsProvider extends ChangeNotifier {
         id,
         initialLabel: 'Accepting…',
         action: () async {
-          await _service.accept(id);
-          await refreshAll();
+          try {
+            await _service.accept(id);
+          } on ApiException catch (e) {
+            if (e.code == 'already_accepted' ||
+                e.message.toLowerCase().contains('already accepted')) {
+              available = available.where((b) => b.id != id).toList();
+              counts = BookingCounts(
+                available: (counts.available - 1).clamp(0, 999999),
+                accepted: counts.accepted,
+                completed: counts.completed,
+              );
+              notifyListeners();
+              unawaited(refreshAll(force: true));
+            }
+            rethrow;
+          }
+          await refreshAll(force: true);
           return BookingActionResult.ok(
             message: 'Job accepted',
             navigateToAccepted: true,
@@ -82,7 +127,7 @@ class BookingsProvider extends ChangeNotifier {
             completed: counts.completed,
           );
           notifyListeners();
-          unawaited(refreshAll());
+          unawaited(refreshAll(force: true));
           return BookingActionResult.ok(message: 'Booking rejected');
         },
       );

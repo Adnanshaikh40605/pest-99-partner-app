@@ -18,14 +18,6 @@ class AcceptedScreen extends StatefulWidget {
 }
 
 class _AcceptedScreenState extends State<AcceptedScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BookingsProvider>().refreshAll();
-    });
-  }
-
   void _onPrimary(BuildContext context, api.PartnerBooking raw) {
     final provider = context.read<BookingsProvider>();
     if (provider.isProcessing(raw.id)) return;
@@ -39,7 +31,7 @@ class _AcceptedScreenState extends State<AcceptedScreen> {
     return Scaffold(
       appBar: const ProfileAwareTopBar(),
       body: RefreshIndicator(
-        onRefresh: bookings.refreshAll,
+        onRefresh: () => bookings.refreshAll(force: true),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(

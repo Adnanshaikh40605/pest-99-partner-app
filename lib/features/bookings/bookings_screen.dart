@@ -18,21 +18,13 @@ class BookingsScreen extends StatefulWidget {
 
 class _BookingsScreenState extends State<BookingsScreen> {
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BookingsProvider>().refreshAll();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final bookings = context.watch<BookingsProvider>();
 
     return Scaffold(
       appBar: const ProfileAwareTopBar(),
       body: RefreshIndicator(
-        onRefresh: bookings.refreshAll,
+        onRefresh: () => bookings.refreshAll(force: true),
         child: bookings.loading && bookings.available.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : _buildBody(context, bookings),
@@ -49,7 +41,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             height: MediaQuery.sizeOf(context).height * 0.45,
             child: AsyncErrorView(
               message: bookings.error!,
-              onRetry: bookings.refreshAll,
+              onRetry: () => bookings.refreshAll(force: true),
             ),
           ),
         ],
