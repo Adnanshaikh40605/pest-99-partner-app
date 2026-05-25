@@ -122,12 +122,16 @@ class _SelfieVerificationSheetState extends State<_SelfieVerificationSheet> {
           ),
           const SizedBox(height: 24),
           PrimaryButton(
-            label: _busy ? 'Opening camera…' : 'Capture & Start Job',
+            label: _busy
+                ? 'Opening camera…'
+                : _previewPath != null
+                    ? 'Use photo & continue'
+                    : 'Capture selfie',
             icon: Icons.camera_alt,
-            onPressed: _previewPath != null && !_busy
-                ? () => Navigator.pop(context, _previewPath)
-                : _busy
-                    ? null
+            onPressed: _busy
+                ? null
+                : _previewPath != null
+                    ? () => Navigator.pop(context, _previewPath)
                     : _capture,
           ),
           const SizedBox(height: 12),

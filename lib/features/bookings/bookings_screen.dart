@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/mappers/booking_mapper.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../providers/bookings_provider.dart';
-import '../../shared/widgets/app_top_bar.dart';
+import '../../shared/widgets/profile_aware_top_bar.dart';
+import '../../shared/booking_workflow.dart';
+import '../../shared/widgets/async_error_view.dart';
 import '../../shared/widgets/booking_cards.dart';
 
 class BookingsScreen extends StatefulWidget {
@@ -29,7 +30,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final bookings = context.watch<BookingsProvider>();
 
     return Scaffold(
-      appBar: const AppTopBar(),
+      appBar: const ProfileAwareTopBar(),
       body: RefreshIndicator(
         onRefresh: bookings.refreshAll,
         child: bookings.loading && bookings.available.isEmpty
@@ -44,9 +45,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(bookings.error!, textAlign: TextAlign.center),
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.45,
+            child: AsyncErrorView(
+              message: bookings.error!,
+              onRetry: bookings.refreshAll,
+            ),
           ),
         ],
       );
@@ -83,29 +87,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
               padding: const EdgeInsets.only(bottom: AppSpacing.elementGap),
               child: AvailableBookingCard(
                 booking: ui,
-                onAccept: () async {
-                  final ok = await bookings.accept(b.id);
-                  if (!context.mounted) return;
-                  if (ok) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Job accepted')),
-                    );
-                    context.go('/accepted');
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(bookings.error ?? 'Accept failed')),
-                    );
-                  }
-                },
-                onReject: () async {
-                  final ok = await bookings.reject(b.id);
-                  if (!context.mounted) return;
-                  if (!ok) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(bookings.error ?? 'Reject failed')),
-                    );
-                  }
-                },
+                isAcceptLoading: bookings.isProcessing(b.id),
+                isRejectLoading: bookings.isProcessing(b.id),
+                onAccept: bookings.isProcessing(b.id)
+                    ? null
+                    : () => BookingWorkflow.accept(context, b.id),
+                onReject: bookings.isProcessing(b.id)
+                    ? null
+                    : () => BookingWorkflow.reject(context, b.id),
               ),
             );
           }),

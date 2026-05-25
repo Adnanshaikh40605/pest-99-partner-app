@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode, this.code});
 
@@ -31,5 +33,27 @@ class ApiException implements Exception {
       }
     }
     return ApiException('Something went wrong. Please try again.', statusCode: status);
+  }
+
+  static ApiException fromDio(DioException e) {
+    final res = e.response;
+    if (res != null) {
+      Map<String, dynamic>? body;
+      final data = res.data;
+      if (data is Map<String, dynamic>) body = data;
+      return fromResponse(res.statusCode ?? 0, body);
+    }
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return ApiException('Network slow. Please try again.', statusCode: 408);
+      case DioExceptionType.connectionError:
+        return ApiException('Network error. Check your connection.');
+      case DioExceptionType.cancel:
+        return ApiException('Request cancelled.');
+      default:
+        return ApiException(e.message ?? 'Network error. Check your connection.');
+    }
   }
 }

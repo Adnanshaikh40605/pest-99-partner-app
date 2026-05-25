@@ -164,8 +164,8 @@ class _BookingCard extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () async {
-                          final ok = await bookings.reject(booking.id);
-                          if (context.mounted && !ok) {
+                          final result = await bookings.reject(booking.id);
+                          if (context.mounted && !result.success) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text(bookings.error ?? 'Reject failed'), backgroundColor: AppColors.danger),
                             );
@@ -178,9 +178,9 @@ class _BookingCard extends StatelessWidget {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () async {
-                          final ok = await bookings.accept(booking.id);
+                          final result = await bookings.accept(booking.id);
                           if (context.mounted) {
-                            if (ok) {
+                            if (result.success) {
                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Accepted')));
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(

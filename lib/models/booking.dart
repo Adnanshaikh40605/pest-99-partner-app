@@ -49,7 +49,22 @@ class PartnerBooking {
   final String? jobStartSelfieUrl;
   final String? notes;
 
+  /// Pool booking sent from CRM — partner can accept from app.
+  bool get allowsAccept {
+    final ps = partnerStatus?.toLowerCase();
+    return ps == 'pending' || ps == null || ps.isEmpty;
+  }
+
+  /// True when partner can start (accepted, not yet in service).
+  bool get allowsStart => canStartJob || partnerStatus == 'accepted';
+
+  /// True when partner can complete (in service).
+  bool get allowsComplete => canCompleteJob || partnerStatus == 'in_service';
+
   factory PartnerBooking.fromJson(Map<String, dynamic> json) {
+    final partnerStatus = json['partner_status'] as String?;
+    final canStart = json['can_start_job'] == true || partnerStatus == 'accepted';
+    final canComplete = json['can_complete_job'] == true || partnerStatus == 'in_service';
     return PartnerBooking(
       id: json['id'] as int,
       code: json['code'] as String?,
@@ -63,15 +78,15 @@ class PartnerBooking {
       scheduleDatetime: json['schedule_datetime'] as String?,
       timeSlot: json['time_slot'] as String?,
       status: json['status'] as String?,
-      partnerStatus: json['partner_status'] as String?,
+      partnerStatus: partnerStatus,
       price: json['price']?.toString(),
       priceDisplay: json['price_display'] as String?,
       paymentStatus: json['payment_status'] as String?,
       paymentMode: json['payment_mode'] as String?,
       bookingTag: json['booking_tag'] as String?,
       canViewClientPhone: json['can_view_client_phone'] == true,
-      canStartJob: json['can_start_job'] == true,
-      canCompleteJob: json['can_complete_job'] == true,
+      canStartJob: canStart,
+      canCompleteJob: canComplete,
       jobStartSelfieUrl: json['job_start_selfie_url'] as String?,
       notes: json['notes'] as String?,
     );

@@ -8,8 +8,22 @@ class ProfileService {
 
   Future<Map<String, dynamic>> getProfile() => _api.get(ApiConfig.profile);
 
-  Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> body) =>
-      _api.put(ApiConfig.profile, body: body);
+  Future<Map<String, dynamic>> updateProfile({
+    required String fullName,
+    String? imagePath,
+  }) async {
+    if (imagePath != null && imagePath.isNotEmpty) {
+      return _api.putMultipart(
+        ApiConfig.profile,
+        fields: {'full_name': fullName},
+        files: {'profile_image': imagePath},
+      );
+    }
+    return _api.put(
+      ApiConfig.profile,
+      body: {'full_name': fullName},
+    );
+  }
 
   Future<Map<String, dynamic>> referClient({
     required String clientName,

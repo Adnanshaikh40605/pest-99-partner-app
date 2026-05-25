@@ -1,0 +1,53 @@
+import 'package:flutter/foundation.dart';
+
+import '../core/models/app_version_info.dart';
+import '../services/app_version_service.dart';
+
+enum AppUpdateCheckStatus {
+  idle,
+  checking,
+  upToDate,
+  forceUpdateRequired,
+  checkFailed,
+}
+
+class AppUpdateProvider extends ChangeNotifier {
+  AppUpdateProvider(this._service);
+
+  final AppVersionService _service;
+
+  AppUpdateCheckStatus status = AppUpdateCheckStatus.idle;
+  String currentVersion = '';
+  AppVersionInfo? serverInfo;
+  String? checkError;
+
+  bool get isChecking => status == AppUpdateCheckStatus.checking;
+  bool get forceUpdateRequired =>
+      status == AppUpdateCheckStatus.forceUpdateRequired;
+
+  Future<void> checkForUpdate() async {
+    status = AppUpdateCheckStatus.checking;
+    checkError = null;
+    notifyListeners();
+
+    try {
+      final result = await _service.fetchVersionPolicy();
+      currentVersion = result.currentVersion;
+      serverInfo = result.server;
+
+      final blocked = _service.requiresForceUpdate(
+        currentVersion: currentVersion,
+        server: result.server,
+      );
+
+      status = blocked
+          ? AppUpdateCheckStatus.forceUpdateRequired
+          : AppUpdateCheckStatus.upToDate;
+    } catch (e) {
+      debugPrint('[AppUpdate] version check failed: $e');
+      checkError = e.toString();
+      status = AppUpdateCheckStatus.checkFailed;
+    }
+    notifyListeners();
+  }
+}

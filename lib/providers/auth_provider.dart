@@ -1,18 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../core/api_exception.dart';
+import '../core/session_coordinator.dart';
 import '../services/auth_service.dart';
+import '../services/push_notification_service.dart';
 
 class AuthProvider extends ChangeNotifier {
-  AuthProvider(this._auth);
+  AuthProvider(this._auth, this._session) {
+    _session.addListener(_onSessionEvent);
+  }
 
   final AuthService _auth;
+  final SessionCoordinator _session;
+
   bool _loading = false;
   String? _error;
   bool _loggedIn = false;
   bool _appApproved = false;
   bool _ready = false;
   String? _partnerName;
+  String? _sessionExpiredMessage;
 
   bool get loading => _loading;
   String? get error => _error;
@@ -20,17 +29,40 @@ class AuthProvider extends ChangeNotifier {
   bool get appApproved => _appApproved;
   bool get ready => _ready;
   String? get partnerName => _partnerName;
+  String? get sessionExpiredMessage => _sessionExpiredMessage;
+
+  void _onSessionEvent() {
+    final msg = _session.sessionExpiredMessage;
+    if (msg != null && _loggedIn) {
+      _sessionExpiredMessage = msg;
+      _loggedIn = false;
+      _appApproved = false;
+      _partnerName = null;
+      notifyListeners();
+    }
+  }
 
   Future<void> init() async {
     _loggedIn = await _auth.hasSession();
     _appApproved = _loggedIn ? await _auth.isAppApproved() : false;
+    if (_loggedIn) {
+      await PushNotificationService.instance.ensureTokenSyncedWithBackend();
+      PushNotificationService.instance.processPendingNavigation();
+    }
     _ready = true;
     notifyListeners();
+  }
+
+  void clearSessionMessage() {
+    _sessionExpiredMessage = null;
+    _session.clearMessage();
   }
 
   Future<bool> login(String mobile, String password) async {
     _loading = true;
     _error = null;
+    _sessionExpiredMessage = null;
+    _session.clearMessage();
     notifyListeners();
     try {
       final data = await _auth.login(mobile, password);
@@ -40,6 +72,12 @@ class AuthProvider extends ChangeNotifier {
       if (partner is Map) {
         _partnerName = partner['full_name'] as String?;
       }
+      final fcmOk = await PushNotificationService.instance.ensureTokenSyncedWithBackend();
+      if (!fcmOk) {
+        debugPrint('FCM token not saved — enable notifications and try again');
+      }
+      // Show login alert after token sync; permission re-checked inside service.
+      unawaited(PushNotificationService.instance.showLoginSuccessNotification());
       return true;
     } on ApiException catch (e) {
       _error = e.message;
@@ -83,14 +121,25 @@ class AuthProvider extends ChangeNotifier {
     if (partner is Map) {
       _partnerName = partner['full_name'] as String?;
     }
+    if (_loggedIn) {
+      await PushNotificationService.instance.ensureTokenSyncedWithBackend();
+    }
     notifyListeners();
   }
 
   Future<void> logout() async {
+    await PushNotificationService.instance.removeTokenFromBackend();
     await _auth.logout();
     _loggedIn = false;
     _appApproved = false;
     _partnerName = null;
+    _session.clearMessage();
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _session.removeListener(_onSessionEvent);
+    super.dispose();
   }
 }

@@ -51,9 +51,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     final file = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
     if (file == null || !mounted) return;
 
-    final ok = await context.read<BookingsProvider>().startJob(widget.bookingId, file.path);
+    final result = await context.read<BookingsProvider>().startJob(widget.bookingId, file.path);
     if (!mounted) return;
-    if (ok) {
+    if (result.success) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Job started')));
       await _load();
     } else {
@@ -80,9 +80,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       ),
     );
     if (mode == null || !mounted) return;
-    final ok = await context.read<BookingsProvider>().completeJob(widget.bookingId, mode);
+    final result = await context.read<BookingsProvider>().completeJob(widget.bookingId, mode);
     if (!mounted) return;
-    if (ok) {
+    if (result.success) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Service completed')));
     }

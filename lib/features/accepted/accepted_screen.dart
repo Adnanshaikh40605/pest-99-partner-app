@@ -3,13 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/mappers/booking_mapper.dart';
-import '../../core/models/booking_type.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../models/booking.dart' as api;
 import '../../providers/bookings_provider.dart';
-import '../../shared/widgets/app_top_bar.dart';
+import '../../shared/booking_workflow.dart';
+import '../../shared/widgets/profile_aware_top_bar.dart';
 import '../../shared/widgets/booking_cards.dart';
-import '../../shared/widgets/service_modals.dart';
 
 class AcceptedScreen extends StatefulWidget {
   const AcceptedScreen({super.key});
@@ -27,44 +26,10 @@ class _AcceptedScreenState extends State<AcceptedScreen> {
     });
   }
 
-  Future<void> _primaryAction(BuildContext context, api.PartnerBooking raw) async {
-    final bookings = context.read<BookingsProvider>();
-
-    if (raw.canCompleteJob) {
-      final mode = await showEndServiceModal(context);
-      if (mode == null || !context.mounted) return;
-      final payment = mode == PaymentMode.online ? 'Online' : 'Cash';
-      final ok = await bookings.completeJob(raw.id, payment);
-      if (!context.mounted) return;
-      if (ok) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Service completed')),
-        );
-        context.go('/completed');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(bookings.error ?? 'Could not complete')),
-        );
-      }
-      return;
-    }
-
-    if (raw.canStartJob) {
-      final path = await showSelfieVerificationModal(context);
-      if (path == null || !context.mounted) return;
-      final ok = await bookings.startJob(raw.id, path);
-      if (!context.mounted) return;
-      if (ok) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Job started — selfie uploaded')),
-        );
-        await bookings.refreshAll();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(bookings.error ?? 'Could not start job')),
-        );
-      }
-    }
+  void _onPrimary(BuildContext context, api.PartnerBooking raw) {
+    final provider = context.read<BookingsProvider>();
+    if (provider.isProcessing(raw.id)) return;
+    BookingWorkflow.handleAcceptedPrimary(context, raw);
   }
 
   @override
@@ -72,7 +37,7 @@ class _AcceptedScreenState extends State<AcceptedScreen> {
     final bookings = context.watch<BookingsProvider>();
 
     return Scaffold(
-      appBar: const AppTopBar(),
+      appBar: const ProfileAwareTopBar(),
       body: RefreshIndicator(
         onRefresh: bookings.refreshAll,
         child: ListView(
@@ -100,12 +65,21 @@ class _AcceptedScreenState extends State<AcceptedScreen> {
             else
               ...bookings.accepted.map((raw) {
                 final ui = BookingMapper.fromPartner(raw);
+                final processing = bookings.isProcessing(raw.id);
+                final label = bookings.processingLabel(raw.id);
+
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 24),
                   child: AcceptedBookingCard(
                     booking: ui,
-                    onViewDetails: () => context.push('/booking/${raw.id}'),
-                    onPrimaryAction: () => _primaryAction(context, raw),
+                    onViewDetails: processing
+                        ? null
+                        : () => context.push('/booking/${raw.id}'),
+                    onPrimaryAction: (raw.allowsStart || raw.allowsComplete)
+                        ? () => _onPrimary(context, raw)
+                        : null,
+                    isPrimaryLoading: processing,
+                    primaryLoadingLabel: label,
                   ),
                 );
               }),

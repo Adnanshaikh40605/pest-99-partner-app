@@ -6,6 +6,7 @@ import '../../core/models/booking_type.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import 'booking_type_tag.dart';
+import 'loading_action_button.dart';
 import 'primary_button.dart';
 
 class AvailableBookingCard extends StatelessWidget {
@@ -14,11 +15,15 @@ class AvailableBookingCard extends StatelessWidget {
     required this.booking,
     this.onAccept,
     this.onReject,
+    this.isAcceptLoading = false,
+    this.isRejectLoading = false,
   });
 
   final Booking booking;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
+  final bool isAcceptLoading;
+  final bool isRejectLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -85,24 +90,22 @@ class AvailableBookingCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              OutlinedActionButton(
-                label: 'Reject',
-                icon: Icons.close,
-                onPressed: onReject,
+              Expanded(
+                child: OutlinedActionButton(
+                  label: isRejectLoading ? 'Rejecting…' : 'Reject',
+                  icon: Icons.close,
+                  onPressed: isRejectLoading || isAcceptLoading ? null : onReject,
+                ),
               ),
               const SizedBox(width: AppSpacing.elementGap),
               Expanded(
                 flex: 2,
-                child: ElevatedButton(
-                  onPressed: onAccept,
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.check, size: 20),
-                      SizedBox(width: 8),
-                      Text('Accept Job'),
-                    ],
-                  ),
+                child: LoadingActionButton(
+                  label: 'Accept Job',
+                  loadingLabel: 'Accepting…',
+                  icon: Icons.check,
+                  isLoading: isAcceptLoading,
+                  onPressed: isRejectLoading ? null : onAccept,
                 ),
               ),
             ],
@@ -119,11 +122,15 @@ class AcceptedBookingCard extends StatelessWidget {
     required this.booking,
     this.onViewDetails,
     this.onPrimaryAction,
+    this.isPrimaryLoading = false,
+    this.primaryLoadingLabel,
   });
 
   final Booking booking;
   final VoidCallback? onViewDetails;
   final VoidCallback? onPrimaryAction;
+  final bool isPrimaryLoading;
+  final String? primaryLoadingLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -262,18 +269,13 @@ class AcceptedBookingCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: ElevatedButton(
+                child: LoadingActionButton(
+                  label: inService ? 'End Service' : 'Start Job',
+                  loadingLabel: primaryLoadingLabel ??
+                      (inService ? 'Ending service…' : 'Starting job…'),
+                  icon: inService ? Icons.check_circle_outline : Icons.play_arrow,
+                  isLoading: isPrimaryLoading,
                   onPressed: onPrimaryAction,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (!inService) ...[
-                        const Icon(Icons.play_arrow, size: 20),
-                        const SizedBox(width: 4),
-                      ],
-                      Text(inService ? 'End Service' : 'Start Job'),
-                    ],
-                  ),
                 ),
               ),
             ],

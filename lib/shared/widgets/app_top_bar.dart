@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
-import '../../core/constants/app_assets.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../providers/notifications_provider.dart';
 import 'pest_logo.dart';
 
 class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
@@ -13,6 +15,9 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.onBack,
     this.centerLogo = true,
     this.title,
+    this.avatarUrl,
+    this.avatarLabel,
+    this.onAvatarTap,
   });
 
   final bool showAvatar;
@@ -20,12 +25,21 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBack;
   final bool centerLogo;
   final String? title;
+  final String? avatarUrl;
+  final String? avatarLabel;
+  final VoidCallback? onAvatarTap;
 
   @override
   Size get preferredSize => const Size.fromHeight(64);
 
+  void _defaultAvatarTap(BuildContext context) {
+    context.go('/profile');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final unread = context.watch<NotificationsProvider>().unreadCount;
+
     return Material(
       color: AppColors.surface,
       child: Container(
@@ -49,13 +63,19 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 )
               else if (showAvatar)
-                CircleAvatar(
-                  radius: 20,
-                  backgroundImage: const NetworkImage(AppAssets.technicianAvatar),
-                  backgroundColor: AppColors.surfaceContainerHigh,
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onAvatarTap ?? () => _defaultAvatarTap(context),
+                    customBorder: const CircleBorder(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: _AvatarChip(url: avatarUrl, label: avatarLabel),
+                    ),
+                  ),
                 )
               else
-                const SizedBox(width: 40),
+                const SizedBox(width: 48),
               Expanded(
                 child: centerLogo
                     ? const Center(child: PestLogo(height: 32))
@@ -68,12 +88,52 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                       ),
               ),
               IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.notifications_outlined, color: AppColors.onSurfaceVariant),
+                onPressed: () => context.push('/notifications'),
+                icon: Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text(unread > 9 ? '9+' : '$unread'),
+                  child: const Icon(Icons.notifications_outlined, color: AppColors.onSurfaceVariant),
+                ),
                 style: IconButton.styleFrom(minimumSize: const Size(40, 40)),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarChip extends StatelessWidget {
+  const _AvatarChip({this.url, this.label});
+
+  final String? url;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = (label != null && label!.trim().isNotEmpty)
+        ? label!.trim().substring(0, 1).toUpperCase()
+        : '?';
+
+    if (url != null && url!.isNotEmpty) {
+      return CircleAvatar(
+        radius: 20,
+        backgroundColor: AppColors.surfaceContainerHigh,
+        backgroundImage: NetworkImage(url!),
+        onBackgroundImageError: (_, __) {},
+        child: url!.isEmpty ? Text(initials) : null,
+      );
+    }
+
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: AppColors.primaryContainer,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

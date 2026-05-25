@@ -2,53 +2,108 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants/app_assets.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/bookings_provider.dart';
+import '../../providers/profile_provider.dart';
 import '../../shared/widgets/app_top_bar.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ProfileProvider>().loadProfile(force: true);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final profile = context.watch<ProfileProvider>();
     final counts = context.watch<BookingsProvider>().counts;
+    final p = profile.profile;
+
+    final available = p?.stats?.availableJobs ?? counts.available;
+    final accepted = p?.stats?.acceptedJobs ?? counts.accepted;
+    final completed = p?.stats?.completedJobs ?? counts.completed;
 
     return Scaffold(
       appBar: const AppTopBar(showAvatar: false, centerLogo: true),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenEdge,
-          AppSpacing.sectionGap,
-          AppSpacing.screenEdge,
-          100,
-        ),
-        children: [
-          _ProfileHeader(),
-          const SizedBox(height: AppSpacing.sectionGap),
-          _StatsGrid(
-            available: counts.available,
-            accepted: counts.accepted,
-            completed: counts.completed,
-          ),
-          const SizedBox(height: AppSpacing.sectionGap),
-          _MenuList(
-            onLogout: () async {
-              await context.read<AuthProvider>().logout();
-              if (context.mounted) context.go('/login');
-            },
-          ),
-        ],
-      ),
+      body: profile.loading && p == null
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: () => profile.loadProfile(force: true),
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenEdge,
+                  AppSpacing.sectionGap,
+                  AppSpacing.screenEdge,
+                  100,
+                ),
+                children: [
+                  if (profile.error != null && p == null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(profile.error!, textAlign: TextAlign.center),
+                    ),
+                  _ProfileHeader(
+                    fullName: profile.displayName,
+                    mobile: p?.mobile ?? '',
+                    role: p?.role ?? 'technician',
+                    avatarUrl: profile.avatarUrl,
+                    isActive: p?.isActive ?? true,
+                  ),
+                  const SizedBox(height: AppSpacing.sectionGap),
+                  _StatsGrid(
+                    available: available,
+                    accepted: accepted,
+                    completed: completed,
+                  ),
+                  const SizedBox(height: AppSpacing.sectionGap),
+                  _MenuList(
+                    onEditProfile: () => context.push('/profile/edit'),
+                    onLogout: () async {
+                      context.read<ProfileProvider>().clear();
+                      await context.read<AuthProvider>().logout();
+                      if (context.mounted) context.go('/login');
+                    },
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }
 
 class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({
+    required this.fullName,
+    required this.mobile,
+    required this.role,
+    this.avatarUrl,
+    required this.isActive,
+  });
+
+  final String fullName;
+  final String mobile;
+  final String role;
+  final String? avatarUrl;
+  final bool isActive;
+
   @override
   Widget build(BuildContext context) {
+    final initials = fullName.isNotEmpty ? fullName.substring(0, 1).toUpperCase() : '?';
+    final roleLabel = role == 'technician_admin' ? 'Technician Admin' : 'Technician';
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
       decoration: BoxDecoration(
@@ -65,30 +120,45 @@ class _ProfileHeader extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 48,
-                backgroundImage: const NetworkImage(AppAssets.profileAvatar),
+                backgroundColor: AppColors.primaryContainer,
+                backgroundImage:
+                    avatarUrl != null && avatarUrl!.isNotEmpty ? NetworkImage(avatarUrl!) : null,
+                child: avatarUrl == null || avatarUrl!.isEmpty
+                    ? Text(
+                        initials,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      )
+                    : null,
               ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: AppColors.successBg,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.surface, width: 2),
+              if (isActive)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppColors.successBg,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.surface, width: 2),
+                    ),
+                    child: const Icon(Icons.verified, size: 16, color: AppColors.successText),
                   ),
-                  child: const Icon(Icons.verified, size: 16, color: AppColors.successText),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 16),
-          Text('Partner Technician', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 4),
-          Text(
-            'Pest 99 Partner App',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
-          ),
+          Text(fullName, style: Theme.of(context).textTheme.headlineMedium),
+          if (mobile.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              mobile,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -97,7 +167,7 @@ class _ProfileHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              'Active Partner',
+              roleLabel,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.onPrimary),
             ),
           ),
@@ -167,15 +237,20 @@ class _StatsGrid extends StatelessWidget {
 }
 
 class _MenuList extends StatelessWidget {
-  const _MenuList({required this.onLogout});
+  const _MenuList({
+    required this.onEditProfile,
+    required this.onLogout,
+  });
 
+  final VoidCallback onEditProfile;
   final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      (Icons.person_outline, 'Edit Profile', () {}),
+    final items = <(IconData, String, VoidCallback)>[
+      (Icons.person_outline, 'Edit Profile', onEditProfile),
       (Icons.card_giftcard_outlined, 'Refer Client', () => context.push('/refer-client')),
+      (Icons.timeline_outlined, 'My Referrals', () => context.push('/referral-progress')),
       (Icons.account_balance_outlined, 'Bank Details', () {}),
       (Icons.payments_outlined, 'Earnings History', () {}),
       (Icons.help_outline, 'Help & Support', () {}),

@@ -25,11 +25,15 @@ class AuthService {
       },
       auth: false,
     );
-    final token = data['access'] as String?;
-    if (token == null || token.isEmpty) {
+    final access = data['access'] as String?;
+    final refresh = data['refresh'] as String?;
+    if (access == null || access.isEmpty) {
       throw ApiException('Login failed — no token received.');
     }
-    await _api.saveToken(token);
+    if (refresh == null || refresh.isEmpty) {
+      throw ApiException('Login failed — no refresh token received.');
+    }
+    await _api.saveSessionTokens(access: access, refresh: refresh);
     final approved = data['is_app_approved'] == true;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_approvedKey, approved);
@@ -65,13 +69,10 @@ class AuthService {
   }
 
   Future<void> logout() async {
-    await _api.clearToken();
+    await _api.clearSession();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_approvedKey);
   }
 
-  Future<bool> hasSession() async {
-    final t = await _api.getToken();
-    return t != null && t.isNotEmpty;
-  }
+  Future<bool> hasSession() => _api.hasSession();
 }

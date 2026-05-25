@@ -8,25 +8,38 @@ import '../../features/auth/register_screen.dart';
 import '../../features/booking_detail/booking_detail_screen.dart';
 import '../../features/bookings/bookings_screen.dart';
 import '../../features/completed/completed_screen.dart';
+import '../../features/profile/edit_profile_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/notifications/notifications_screen.dart';
 import '../../features/referral/refer_client_screen.dart';
+import '../../features/referral/referral_progress_screen.dart';
+import '../../features/force_update/force_update_screen.dart';
 import '../../features/splash/splash_screen.dart';
+import '../../providers/app_update_provider.dart';
+import 'booking_open_args.dart';
+import '../../debug/debug_config.dart';
+import '../../debug/debug_dio_interceptor.dart';
 import '../../providers/auth_provider.dart';
 import '../../shared/widgets/app_bottom_nav.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 class AppRouter {
-  AppRouter(this._auth) {
+  AppRouter(this._auth, this._appUpdate) {
     router = GoRouter(
       navigatorKey: rootNavigatorKey,
       initialLocation: '/splash',
-      refreshListenable: _auth,
+      refreshListenable: Listenable.merge([_auth, _appUpdate]),
       redirect: _redirect,
+      observers: DebugConfig.enabled ? [DebugRouteObserver()] : [],
       routes: [
         GoRoute(
           path: '/splash',
           pageBuilder: (context, state) => _fadePage(state, const SplashScreen()),
+        ),
+        GoRoute(
+          path: '/force-update',
+          pageBuilder: (context, state) => const NoTransitionPage(child: ForceUpdateScreen()),
         ),
         GoRoute(
           path: '/login',
@@ -84,8 +97,27 @@ class AppRouter {
           parentNavigatorKey: rootNavigatorKey,
           pageBuilder: (context, state) {
             final id = int.parse(state.pathParameters['id']!);
-            return _slidePage(state, BookingDetailScreen(bookingId: id));
+            final extra = state.extra;
+            final openArgs = extra is BookingOpenArgs ? extra : null;
+            return _slidePage(
+              state,
+              BookingDetailScreen(
+                key: ValueKey(openArgs?.pageKey(id) ?? 'booking-$id'),
+                bookingId: id,
+                openArgs: openArgs,
+              ),
+            );
           },
+        ),
+        GoRoute(
+          path: '/profile/edit',
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (context, state) => _slidePage(state, const EditProfileScreen()),
+        ),
+        GoRoute(
+          path: '/notifications',
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (context, state) => _slidePage(state, const NotificationsScreen()),
         ),
         GoRoute(
           path: '/refer-client',
@@ -93,21 +125,40 @@ class AppRouter {
           pageBuilder: (context, state) => _slidePage(state, const ReferClientScreen()),
         ),
         GoRoute(
-          path: '/referral-success',
+          path: '/referral-progress',
           parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (context, state) => _slidePage(state, const ReferralSuccessScreen()),
+          pageBuilder: (context, state) {
+            final highlightId = state.extra is int ? state.extra as int : null;
+            return _slidePage(
+              state,
+              ReferralProgressScreen(highlightId: highlightId),
+            );
+          },
+        ),
+        GoRoute(
+          path: '/referral-success',
+          redirect: (_, __) => '/referral-progress',
         ),
       ],
     );
   }
 
   final AuthProvider _auth;
+  final AppUpdateProvider _appUpdate;
   late final GoRouter router;
 
   String? _redirect(BuildContext context, GoRouterState state) {
-    if (!_auth.ready) return null;
-
     final path = state.matchedLocation;
+
+    if (_appUpdate.forceUpdateRequired) {
+      return path == '/force-update' ? null : '/force-update';
+    }
+
+    if (_appUpdate.isChecking) {
+      return path == '/splash' ? null : '/splash';
+    }
+
+    if (!_auth.ready) return null;
     final onAuth = path == '/login' || path == '/register';
     final onSplash = path == '/splash';
 

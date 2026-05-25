@@ -1,5 +1,3 @@
-import 'package:http/http.dart' as http;
-
 import '../config/api_config.dart';
 import '../core/api_client.dart';
 import '../models/booking.dart';
@@ -37,7 +35,7 @@ class BookingService {
   Future<void> startWithSelfie(int id, String filePath) async {
     await _api.postMultipart(
       ApiConfig.startBooking(id),
-      files: [await http.MultipartFile.fromPath('selfie', filePath)],
+      files: {'selfie': filePath},
     );
   }
 

@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/app_spacing.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/profile_provider.dart';
+import '../../providers/notifications_provider.dart';
+import '../../services/push_notification_service.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/pest_logo.dart';
 import '../../shared/widgets/primary_button.dart';
@@ -20,6 +23,20 @@ class _LoginScreenState extends State<LoginScreen> {
   final _password = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      final msg = auth.sessionExpiredMessage;
+      if (msg != null && msg.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        auth.clearSessionMessage();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _mobile.dispose();
     _password.dispose();
@@ -31,8 +48,17 @@ class _LoginScreenState extends State<LoginScreen> {
     final ok = await auth.login(_mobile.text.trim(), _password.text);
     if (!mounted) return;
     if (ok) {
+      await context.read<ProfileProvider>().loadProfile(force: true);
+      if (!mounted) return;
       final approved = context.read<AuthProvider>().appApproved;
-      context.go(approved ? '/bookings' : '/pending-approval');
+      if (approved) {
+        await context.read<NotificationsProvider>().load(force: true);
+        if (!mounted) return;
+        context.go('/bookings');
+        PushNotificationService.instance.processPendingNavigation();
+      } else {
+        context.go('/pending-approval');
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(auth.error ?? 'Login failed')),

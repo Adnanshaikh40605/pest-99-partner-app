@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/notifications_provider.dart';
+
 enum AppNavTab { bookings, accepted, completed, profile }
 
 extension AppNavTabX on AppNavTab {
@@ -11,7 +15,6 @@ extension AppNavTabX on AppNavTab {
         AppNavTab.completed => '/completed',
         AppNavTab.profile => '/profile',
       };
-
 }
 
 AppNavTab appNavTabFromLocation(String location) {
@@ -140,7 +143,7 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class MainShellScaffold extends StatelessWidget {
+class MainShellScaffold extends StatefulWidget {
   const MainShellScaffold({
     super.key,
     required this.navigationShell,
@@ -149,11 +152,43 @@ class MainShellScaffold extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
   @override
+  State<MainShellScaffold> createState() => _MainShellScaffoldState();
+}
+
+class _MainShellScaffoldState extends State<MainShellScaffold> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshIfLoggedIn());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshIfLoggedIn();
+    }
+  }
+
+  Future<void> _refreshIfLoggedIn() async {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    if (!auth.loggedIn || !auth.appApproved) return;
+    await context.read<NotificationsProvider>().load(force: true);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final tab = appNavTabFromLocation(GoRouterState.of(context).uri.path);
 
     return Scaffold(
-      body: navigationShell,
+      body: widget.navigationShell,
       bottomNavigationBar: AppBottomNav(current: tab),
     );
   }
