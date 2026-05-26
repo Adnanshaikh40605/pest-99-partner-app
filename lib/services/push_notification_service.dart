@@ -1,10 +1,12 @@
-﻿import 'dart:convert';
+﻿import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../core/constants/notification_channels.dart';
+import '../core/notification_navigation.dart';
 import '../debug/debug_log_store.dart';
 import '../firebase_messaging_background.dart';
 import '../firebase_options.dart';
@@ -209,6 +211,7 @@ class PushNotificationService {
   Future<void> _onForegroundMessage(RemoteMessage message) async {
     _log('FCM foreground: ${message.data}');
     final data = message.data;
+    unawaited(NotificationNavigation.handleForegroundPushData(data));
     final title = message.notification?.title ?? data['title']?.toString() ?? 'Pest 99 Partner';
     final body = message.notification?.body ?? data['body']?.toString() ?? '';
     if (body.isEmpty && title == 'Pest 99 Partner') {

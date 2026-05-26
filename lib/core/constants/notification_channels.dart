@@ -18,7 +18,14 @@ const String kSystemChannelName = kLoginChannelName;
 /// FCM data[type] for pool / send-to-app new booking pushes.
 const String kNotificationTypeNewBooking = 'new_booking';
 
+const String kNotificationTypeBookingCancelled = 'booking_cancelled';
+
 bool isNewBookingPush(Map<String, dynamic> data) {
   final type = data['type']?.toString().toLowerCase() ?? '';
   return type == kNotificationTypeNewBooking;
+}
+
+bool isBookingCancelledPush(Map<String, dynamic> data) {
+  final type = data['type']?.toString().toLowerCase() ?? '';
+  return type == kNotificationTypeBookingCancelled;
 }

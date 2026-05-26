@@ -181,9 +181,13 @@ class _MainShellScaffoldState extends State<MainShellScaffold> with WidgetsBindi
     if (!mounted) return;
     final auth = context.read<AuthProvider>();
     if (!auth.loggedIn || !auth.appApproved) return;
+    final bookings = context.read<BookingsProvider>();
+    final firstLoad = bookings.available.isEmpty &&
+        bookings.accepted.isEmpty &&
+        bookings.completed.isEmpty;
     await Future.wait([
       context.read<NotificationsProvider>().load(force: true),
-      context.read<BookingsProvider>().refreshAll(),
+      firstLoad ? bookings.refreshAll(force: true) : bookings.refreshListsLight(),
     ]);
   }
 

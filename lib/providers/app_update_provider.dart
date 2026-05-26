@@ -25,10 +25,13 @@ class AppUpdateProvider extends ChangeNotifier {
   bool get forceUpdateRequired =>
       status == AppUpdateCheckStatus.forceUpdateRequired;
 
-  Future<void> checkForUpdate() async {
-    status = AppUpdateCheckStatus.checking;
-    checkError = null;
-    notifyListeners();
+  /// [silent] — background check (app resume) without redirecting to splash.
+  Future<void> checkForUpdate({bool silent = false}) async {
+    if (!silent) {
+      status = AppUpdateCheckStatus.checking;
+      checkError = null;
+      notifyListeners();
+    }
 
     try {
       final result = await _service.fetchVersionPolicy();

@@ -23,7 +23,7 @@ class _CompletedScreenState extends State<CompletedScreen> {
     return Scaffold(
       appBar: const ProfileAwareTopBar(),
       body: RefreshIndicator(
-        onRefresh: () => bookings.refreshAll(force: true),
+        onRefresh: () => bookings.refreshListsLight(force: true),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(

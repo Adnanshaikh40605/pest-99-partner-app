@@ -154,10 +154,6 @@ class AppRouter {
       return path == '/force-update' ? null : '/force-update';
     }
 
-    if (_appUpdate.isChecking) {
-      return path == '/splash' ? null : '/splash';
-    }
-
     if (!_auth.ready) return null;
     final onAuth = path == '/login' || path == '/register';
     final onSplash = path == '/splash';

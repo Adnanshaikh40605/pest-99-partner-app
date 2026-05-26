@@ -38,7 +38,7 @@ class _PartnerAppLifecycleState extends State<PartnerAppLifecycle>
 
     final appUpdate = context.read<AppUpdateProvider>();
     unawaited(
-      appUpdate.checkForUpdate().then((_) {
+      appUpdate.checkForUpdate(silent: true).then((_) {
         if (!mounted) return;
         if (appUpdate.forceUpdateRequired) {
           context.go('/force-update');
