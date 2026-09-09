@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -12,9 +15,7 @@ import 'debug/debug_log_store.dart';
 import 'providers/app_update_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/bookings_provider.dart';
-import 'providers/notifications_provider.dart';
 import 'providers/profile_provider.dart';
-import 'services/app_version_service.dart';
 import 'services/auth_service.dart';
 import 'services/booking_service.dart';
 import 'services/notification_api_service.dart';
@@ -28,31 +29,34 @@ Future<void> main() async {
 }
 
 Future<void> _startApp() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
   final sessionCoordinator = SessionCoordinator();
   final api = ApiClient(sessionCoordinator: sessionCoordinator);
   final notificationApi = NotificationApiService(api);
 
-  await PushNotificationService.instance.initialize();
-  PushNotificationService.instance.configure(
-    api: notificationApi,
-    onOpenBooking: (id, data) {
-      final router = _routerHolder.router;
-      if (router != null) {
-        NotificationNavigation.openBookingFromPush(
-          id,
-          router: router,
-          data: data,
-        );
-      }
-    },
-  );
+  // Keep splash up — FCM init must not block first paint.
+  unawaited(PushNotificationService.instance.initialize().then((_) {
+    PushNotificationService.instance.configure(
+      api: notificationApi,
+      onOpenBooking: (id, data) {
+        final router = _routerHolder.router;
+        if (router != null) {
+          NotificationNavigation.openBookingFromPush(
+            id,
+            router: router,
+            data: data,
+          );
+        }
+      },
+    );
+  }));
 
-  final appUpdate = AppUpdateProvider(AppVersionService(api));
+  final appUpdate = AppUpdateProvider();
   final auth = AuthProvider(AuthService(api), sessionCoordinator);
 
-  final appRouter = AppRouter(auth, appUpdate);
+  final appRouter = AppRouter(auth);
   _routerHolder.router = appRouter.router;
 
   runApp(
@@ -64,7 +68,6 @@ Future<void> _startApp() async {
         ChangeNotifierProvider<DebugLogStore>.value(value: DebugLogStore.instance),
         ChangeNotifierProvider(create: (_) => BookingsProvider(BookingService(api))),
         ChangeNotifierProvider(create: (_) => ProfileProvider(ProfileService(api))),
-        ChangeNotifierProvider(create: (_) => NotificationsProvider(notificationApi)),
       ],
       child: Pest99PartnerApp(router: appRouter.router),
     ),

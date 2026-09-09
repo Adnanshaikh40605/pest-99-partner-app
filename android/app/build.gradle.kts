@@ -15,8 +15,9 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.multipestcare.partner"
-    compileSdk = flutter.compileSdkVersion
+    namespace = "com.pestcontrol99.partner"
+    // Google Play (Aug 31, 2026+): target API 36+.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -30,9 +31,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.multipestcare.partner"
+        applicationId = "com.pestcontrol99.partner"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

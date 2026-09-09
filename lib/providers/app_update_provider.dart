@@ -1,66 +1,23 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
-import '../core/models/app_version_info.dart';
-import '../services/app_version_service.dart';
+import '../services/play_store_update_service.dart';
 
-const _versionCheckTimeout = Duration(seconds: 8);
-
-enum AppUpdateCheckStatus {
-  idle,
-  checking,
-  upToDate,
-  forceUpdateRequired,
-  checkFailed,
-}
-
+/// Triggers Google Play in-app update checks (no CRM / backend version policy).
 class AppUpdateProvider extends ChangeNotifier {
-  AppUpdateProvider(this._service);
+  bool _checking = false;
 
-  final AppVersionService _service;
+  bool get isChecking => _checking;
 
-  AppUpdateCheckStatus status = AppUpdateCheckStatus.idle;
-  String currentVersion = '';
-  AppVersionInfo? serverInfo;
-  String? checkError;
-
-  bool get isChecking => status == AppUpdateCheckStatus.checking;
-  bool get forceUpdateRequired =>
-      status == AppUpdateCheckStatus.forceUpdateRequired;
-
-  /// [silent] — background check (app resume) without redirecting to splash.
   Future<void> checkForUpdate({bool silent = false}) async {
-    if (!silent) {
-      status = AppUpdateCheckStatus.checking;
-      checkError = null;
-      notifyListeners();
-    }
+    if (_checking) return;
+    _checking = true;
+    if (!silent) notifyListeners();
 
     try {
-      final result = await _service
-          .fetchVersionPolicy()
-          .timeout(_versionCheckTimeout);
-      currentVersion = result.currentVersion;
-      serverInfo = result.server;
-
-      final blocked = _service.requiresForceUpdate(
-        currentVersion: currentVersion,
-        server: result.server,
-      );
-
-      status = blocked
-          ? AppUpdateCheckStatus.forceUpdateRequired
-          : AppUpdateCheckStatus.upToDate;
-    } on TimeoutException {
-      debugPrint('[AppUpdate] version check timed out');
-      checkError = 'Version check timed out';
-      status = AppUpdateCheckStatus.checkFailed;
-    } catch (e) {
-      debugPrint('[AppUpdate] version check failed: $e');
-      checkError = e.toString();
-      status = AppUpdateCheckStatus.checkFailed;
+      await PlayStoreUpdateService.checkAndPromptUpdate();
+    } finally {
+      _checking = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 }

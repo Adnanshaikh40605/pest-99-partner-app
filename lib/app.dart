@@ -28,7 +28,9 @@ class Pest99PartnerApp extends StatelessWidget {
           });
         }
         return DebugOverlay(
-          child: PartnerAppLifecycle(child: child ?? const SizedBox.shrink()),
+          child: PartnerAppLifecycle(
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );

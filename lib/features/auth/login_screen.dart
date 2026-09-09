@@ -5,11 +5,12 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
-import '../../providers/notifications_provider.dart';
 import '../../services/push_notification_service.dart';
 import '../../core/constants/app_assets.dart';
+import '../../shared/widgets/app_snackbar.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/legal_footer_links.dart';
+import '../../shared/widgets/pest_logo.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/widgets/stitch_illustration.dart';
 
@@ -32,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final auth = context.read<AuthProvider>();
       final msg = auth.sessionExpiredMessage;
       if (msg != null && msg.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        AppSnackBar.error(context, msg);
         auth.clearSessionMessage();
       }
     });
@@ -54,17 +55,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       final approved = context.read<AuthProvider>().appApproved;
       if (approved) {
-        await context.read<NotificationsProvider>().load(force: true);
-        if (!mounted) return;
         context.go('/bookings');
         PushNotificationService.instance.processPendingNavigation();
       } else {
         context.go('/pending-approval');
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.error ?? 'Login failed')),
-      );
+      AppSnackBar.error(context, auth.error ?? 'Login failed. Please try again.');
     }
   }
 
@@ -79,9 +76,11 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             children: [
               const SizedBox(height: 16),
+              const PestLogo(height: 56),
+              const SizedBox(height: 16),
               const StitchIllustration(
                 asset: AppAssets.loginIllustration,
-                height: 240,
+                height: 200,
                 semanticLabel: 'Partner login illustration',
               ),
               const SizedBox(height: 24),

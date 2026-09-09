@@ -6,6 +6,7 @@ import '../core/models/booking_type.dart';
 import '../models/booking.dart' as api;
 import '../models/booking_action_result.dart';
 import '../providers/bookings_provider.dart';
+import 'widgets/app_snackbar.dart';
 import 'widgets/booking_confirm_dialog.dart';
 import 'widgets/processing_overlay.dart';
 import 'widgets/service_modals.dart';
@@ -43,7 +44,12 @@ class BookingWorkflow {
   }
 
   static Future<void> completeFromCard(BuildContext context, int bookingId) async {
-    final mode = await showEndServiceModal(context);
+    final booking = _findBooking(context, bookingId);
+    final mode = await showEndServiceModal(
+      context,
+      payableAmount: booking?.visitPayoutAmount,
+      jobAmount: booking?.totalBookingAmount ?? booking?.priceDisplay ?? booking?.price,
+    );
     if (mode == null || !context.mounted) return;
     await _runComplete(context, bookingId, mode);
   }
@@ -52,9 +58,24 @@ class BookingWorkflow {
     BuildContext context,
     int bookingId,
   ) async {
-    final mode = await showEndServiceModal(context);
+    final booking = _findBooking(context, bookingId);
+    final mode = await showEndServiceModal(
+      context,
+      payableAmount: booking?.visitPayoutAmount,
+      jobAmount: booking?.totalBookingAmount ?? booking?.priceDisplay ?? booking?.price,
+    );
     if (mode == null || !context.mounted) return;
     await _runComplete(context, bookingId, mode);
+  }
+
+  static api.PartnerBooking? _findBooking(BuildContext context, int bookingId) {
+    final provider = context.read<BookingsProvider>();
+    for (final list in [provider.accepted, provider.available, provider.completed]) {
+      for (final b in list) {
+        if (b.id == bookingId) return b;
+      }
+    }
+    return null;
   }
 
   static Future<BookingActionResult?> accept(
@@ -155,22 +176,10 @@ class BookingWorkflow {
   }) {
     final msg = result.message;
     if (msg == null || msg.isEmpty) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            if (result.success && successIcon != null) ...[
-              Icon(successIcon, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-            ],
-            Expanded(child: Text(msg)),
-          ],
-        ),
-        backgroundColor: result.success ? null : Theme.of(context).colorScheme.error,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (result.success) {
+      AppSnackBar.success(context, msg);
+    } else {
+      AppSnackBar.error(context, msg);
+    }
   }
 }

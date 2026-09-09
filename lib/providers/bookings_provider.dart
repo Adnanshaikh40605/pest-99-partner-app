@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/api_exception.dart';
 import '../core/network_connectivity.dart';
+import '../core/user_error.dart';
 import '../models/booking.dart';
 import '../models/booking_action_result.dart';
 import '../services/booking_service.dart';
@@ -22,6 +23,14 @@ class BookingsProvider extends ChangeNotifier {
 
   bool loading = false;
   String? error;
+  bool isSuspended = false;
+  String suspendReason = '';
+  String suspendMessage = '';
+
+  /// True for secondary technicians: the office assigns their jobs, so the
+  /// New Bookings tab is empty by design rather than because of an error.
+  bool manualAssignOnly = false;
+  String manualAssignMessage = '';
 
   final Map<int, String> _processingLabels = {};
   final Set<int> _processingIds = {};
@@ -31,6 +40,15 @@ class BookingsProvider extends ChangeNotifier {
   String? processingLabel(int id) => _processingLabels[id];
 
   bool get isGlobalBusy => _processingIds.isNotEmpty;
+
+  static List<PartnerBooking> _dedupeById(List<PartnerBooking> rows) {
+    final seen = <int>{};
+    final out = <PartnerBooking>[];
+    for (final row in rows) {
+      if (seen.add(row.id)) out.add(row);
+    }
+    return out;
+  }
 
   static const _minRefreshGap = Duration(seconds: 8);
 
@@ -94,17 +112,30 @@ class BookingsProvider extends ChangeNotifier {
         _service.getCompleted(),
       ]);
       counts = results[0] as BookingCounts;
-      available = results[1] as List<PartnerBooking>;
+      final availableResult = results[1] as AvailableBookingsResult;
+      available = _dedupeById(availableResult.bookings);
+      isSuspended = availableResult.isSuspended;
+      suspendReason = availableResult.suspendReason;
+      suspendMessage = availableResult.message;
+      manualAssignOnly = availableResult.manualAssignOnly;
+      manualAssignMessage =
+          availableResult.manualAssignOnly ? availableResult.message : '';
       accepted = results[2] as List<PartnerBooking>;
       completed = results[3] as List<PartnerBooking>;
       if (!showGlobalLoader) error = null;
     } on ApiException catch (e) {
-      if (showGlobalLoader || available.isEmpty) {
-        error = _throttleMessage(e);
+      if (e.isSessionExpired) {
+        // ApiClient already cleared tokens + SessionCoordinator will route to Login.
+        error = null;
+      } else if (showGlobalLoader || available.isEmpty) {
+        error = userErrorMessage(e, fallback: 'Could not load bookings.');
       }
-    } catch (_) {
-      if (showGlobalLoader || available.isEmpty) {
-        error = 'Could not load bookings.';
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Bookings] refresh error: $e');
+      if (isPartnerSessionExpiredError(e)) {
+        error = null;
+      } else if (showGlobalLoader || available.isEmpty) {
+        error = userErrorMessage(e, fallback: 'Could not load bookings.');
       }
     } finally {
       if (showGlobalLoader) loading = false;
@@ -119,6 +150,18 @@ class BookingsProvider extends ChangeNotifier {
     counts = BookingCounts(
       available: (counts.available - 1).clamp(0, 999999),
       accepted: counts.accepted,
+      completed: counts.completed,
+    );
+    notifyListeners();
+  }
+
+  void removeFromAccepted(int id) {
+    final next = accepted.where((b) => b.id != id).toList();
+    if (next.length == accepted.length) return;
+    accepted = next;
+    counts = BookingCounts(
+      available: counts.available,
+      accepted: accepted.length,
       completed: counts.completed,
     );
     notifyListeners();
@@ -150,17 +193,18 @@ class BookingsProvider extends ChangeNotifier {
             await _service.accept(id);
           } on ApiException catch (e) {
             if (_handleStaleBookingError(id, e)) {
-              final msg = e.code == 'cancelled_in_crm'
-                  ? (e.message.isNotEmpty
-                      ? e.message
-                      : 'This booking was already cancelled from CRM.')
-                  : e.message;
-              return BookingActionResult.ok(message: msg);
+              return BookingActionResult.fail(_staleMessage(e));
             }
             rethrow;
           }
-          final detail = await _service.getDetail(id);
-          applyAcceptedBooking(detail);
+          try {
+            final detail = await _service.getDetail(id);
+            applyAcceptedBooking(detail);
+          } catch (_) {
+            // Accept already succeeded — keep optimistic list update via refresh.
+            removeFromAvailable(id);
+            unawaited(refreshListsLight(force: true));
+          }
           unawaited(_syncCounts());
           return BookingActionResult.ok(
             message: 'Job accepted',
@@ -177,12 +221,7 @@ class BookingsProvider extends ChangeNotifier {
             await _service.reject(id);
           } on ApiException catch (e) {
             if (_handleStaleBookingError(id, e)) {
-              final msg = e.code == 'cancelled_in_crm'
-                  ? (e.message.isNotEmpty
-                      ? e.message
-                      : 'This booking was already cancelled from CRM.')
-                  : e.message;
-              return BookingActionResult.ok(message: msg);
+              return BookingActionResult.fail(_staleMessage(e));
             }
             rethrow;
           }
@@ -196,9 +235,20 @@ class BookingsProvider extends ChangeNotifier {
         id,
         initialLabel: 'Uploading selfie…',
         action: () async {
-          await _service.startWithSelfie(id, selfiePath);
-          final updated = await _service.getDetail(id);
-          _replaceInAccepted(updated);
+          try {
+            await _service.startWithSelfie(id, selfiePath);
+          } on ApiException catch (e) {
+            if (_handleStaleBookingError(id, e)) {
+              return BookingActionResult.fail(_staleMessage(e));
+            }
+            rethrow;
+          }
+          try {
+            final updated = await _service.getDetail(id);
+            _replaceInAccepted(updated);
+          } catch (_) {
+            unawaited(refreshListsLight(force: true));
+          }
           notifyListeners();
           unawaited(_syncCounts());
           return BookingActionResult.ok(message: 'Job started');
@@ -209,14 +259,30 @@ class BookingsProvider extends ChangeNotifier {
         id,
         initialLabel: 'Ending service…',
         action: () async {
-          await _service.complete(id, paymentMode);
-          final updated = await _service.getDetail(id);
+          try {
+            await _service.complete(id, paymentMode);
+          } on ApiException catch (e) {
+            if (_handleStaleBookingError(id, e)) {
+              return BookingActionResult.fail(_staleMessage(e));
+            }
+            rethrow;
+          }
+          PartnerBooking? updated;
+          try {
+            updated = await _service.getDetail(id);
+          } catch (_) {
+            // Complete already succeeded — don't fail UX on detail fetch.
+          }
           accepted = accepted.where((b) => b.id != id).toList();
-          completed = [updated, ...completed.where((b) => b.id != id)];
+          if (updated != null) {
+            completed = [updated, ...completed.where((b) => b.id != id)];
+          }
           counts = BookingCounts(
             available: counts.available,
             accepted: accepted.length,
-            completed: completed.length,
+            completed: updated != null
+                ? completed.length
+                : (counts.completed + 1).clamp(0, 999999),
           );
           notifyListeners();
           unawaited(_syncCounts());
@@ -229,21 +295,25 @@ class BookingsProvider extends ChangeNotifier {
 
   /// Remove stale booking from lists when CRM already cancelled / removed.
   bool _handleStaleBookingError(int id, ApiException e) {
-    final stale = e.code == 'cancelled_in_crm' ||
-        e.statusCode == 404 ||
-        (e.statusCode == 409 && e.code == 'already_accepted');
-    if (e.code == 'already_accepted') {
+    final cancelled = e.code == 'cancelled_in_crm';
+    final gone = e.statusCode == 404;
+    final taken = e.statusCode == 409 && e.code == 'already_accepted';
+    if (taken) {
       removeFromAvailable(id);
       unawaited(_syncCounts());
       return true;
     }
-    if (stale || e.code == 'cancelled_in_crm') {
+    if (cancelled || gone) {
       removeFromAvailable(id);
+      removeFromAccepted(id);
       unawaited(_syncCounts());
       return true;
     }
     return false;
   }
+
+  String _staleMessage(ApiException e) =>
+      userErrorMessage(e, fallback: 'This booking is no longer available.');
 
   void _replaceInAccepted(PartnerBooking updated) {
     final idx = accepted.indexWhere((b) => b.id == updated.id);
@@ -260,16 +330,9 @@ class BookingsProvider extends ChangeNotifier {
     try {
       counts = await _service.getCounts();
       notifyListeners();
-    } catch (_) {}
-  }
-
-  String _throttleMessage(ApiException e) {
-    if (e.statusCode == 429) {
-      return e.retryAfterSeconds != null
-          ? 'Too many requests. Try again in ${e.retryAfterSeconds} seconds.'
-          : 'Too many requests. Please wait a minute and try again.';
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Bookings] syncCounts: $e');
     }
-    return e.message;
   }
 
   Future<BookingActionResult> _runAction(
@@ -282,19 +345,17 @@ class BookingsProvider extends ChangeNotifier {
     }
 
     if (!await _connectivity.hasConnection()) {
-      return BookingActionResult.fail('No internet connection');
+      return BookingActionResult.fail('No internet connection. Check your connection and try again.');
     }
 
     _setProcessing(id, initialLabel);
     try {
       return await action();
     } on ApiException catch (e) {
-      final msg = e.statusCode == 408
-          ? 'Network slow. Please try again.'
-          : e.message;
-      return BookingActionResult.fail(msg);
-    } catch (_) {
-      return BookingActionResult.fail('Something went wrong. Please try again.');
+      return BookingActionResult.fail(userErrorMessage(e));
+    } catch (e) {
+      if (kDebugMode) debugPrint('[Bookings] action #$id error: $e');
+      return BookingActionResult.fail(userErrorMessage(e));
     } finally {
       _clearProcessing(id);
     }

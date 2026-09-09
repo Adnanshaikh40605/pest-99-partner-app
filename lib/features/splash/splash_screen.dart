@@ -1,20 +1,21 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/theme/app_colors.dart';
-import '../../services/profile_service.dart';
-import '../../core/theme/app_spacing.dart';
 import '../../providers/app_update_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/notifications_provider.dart';
 import '../../providers/profile_provider.dart';
+import '../../services/profile_service.dart';
 import '../../services/push_notification_service.dart';
-import '../../shared/widgets/pest_logo.dart';
 
+/// Matches the native Android/iOS splash (white + official logo) so the handoff
+/// from OS splash → Flutter has no visible second design.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -26,19 +27,17 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FlutterNativeSplash.remove();
+    });
     _boot();
   }
 
   Future<void> _boot() async {
     try {
-      final appUpdate = context.read<AppUpdateProvider>();
-      await appUpdate.checkForUpdate();
+      // Native Play Store update prompt when a newer release is live.
+      await context.read<AppUpdateProvider>().checkForUpdate();
       if (!mounted) return;
-
-      if (appUpdate.forceUpdateRequired) {
-        context.go('/force-update');
-        return;
-      }
 
       final auth = context.read<AuthProvider>();
       await auth.init();
@@ -88,73 +87,64 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!auth.loggedIn || !auth.appApproved) return;
 
     unawaited(context.read<ProfileProvider>().loadProfile(force: true));
-    unawaited(context.read<NotificationsProvider>().load(force: true));
   }
 
   @override
   Widget build(BuildContext context) {
-    final checking = context.watch<AppUpdateProvider>().isChecking;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: const Scaffold(
+        backgroundColor: Colors.white,
+        body: BrandSplashBody(),
+      ),
+    );
+  }
+}
 
-    return Scaffold(
-      backgroundColor: AppColors.primary,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 256,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x33000000),
-                          blurRadius: 24,
-                          offset: Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: const PestLogo(height: 120),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Pest 99',
-                    style: Theme.of(context).textTheme.displayLarge,
-                  ),
-                ],
-              ),
+/// Shared splash body — keep identical to Customer app.
+class BrandSplashBody extends StatelessWidget {
+  const BrandSplashBody({super.key});
+
+  static const String logoAsset = 'assets/logo/splash_logo.png';
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final logoWidth = (width * 0.72).clamp(220.0, 320.0);
+
+    return SafeArea(
+      child: Stack(
+        children: [
+          Center(
+            child: Image.asset(
+              logoAsset,
+              width: logoWidth,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
             ),
-            Positioned(
-              left: AppSpacing.screenEdge,
-              right: AppSpacing.screenEdge,
-              bottom: 48,
-              child: Column(
-                children: [
-                  const SizedBox(
-                    width: 160,
-                    height: 6,
-                    child: LinearProgressIndicator(
-                      backgroundColor: Color(0x4DFFFFFF),
-                      color: AppColors.onPrimary,
-                    ),
+          ),
+          Positioned(
+            left: 40,
+            right: 40,
+            bottom: 48,
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: const LinearProgressIndicator(
+                    minHeight: 3,
+                    backgroundColor: Color(0xFFE8F5EC),
+                    color: AppColors.primary,
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    checking ? 'CHECKING FOR UPDATES' : 'LOADING OPERATIONS',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppColors.onPrimary.withValues(alpha: 0.8),
-                          letterSpacing: 3,
-                        ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../core/api_exception.dart';
+import '../core/user_error.dart';
 import '../models/partner_profile.dart';
 import '../services/profile_service.dart';
 
@@ -39,9 +40,17 @@ class ProfileProvider extends ChangeNotifier {
       _profile = PartnerProfile.fromProfileResponse(data);
       _error = null;
     } on ApiException catch (e) {
-      _error = e.message;
+      if (e.isSessionExpired) {
+        _error = null;
+      } else {
+        _error = userErrorMessage(e, fallback: 'Could not load profile.');
+      }
     } catch (e) {
-      _error = 'Could not load profile.';
+      if (isPartnerSessionExpiredError(e)) {
+        _error = null;
+      } else {
+        _error = userErrorMessage(e, fallback: 'Could not load profile.');
+      }
       if (kDebugMode) debugPrint('Profile load error: $e');
     } finally {
       _loading = false;
@@ -68,13 +77,29 @@ class ProfileProvider extends ChangeNotifier {
       if (partner is Map<String, dynamic>) {
         _profile = PartnerProfile.fromJson(partner).copyWithStats(_profile?.stats);
       }
-      await loadProfile(force: true);
+
+      // Always re-fetch after save (avoid loadProfile early-return while _loading).
+      try {
+        final fresh = await _service.getProfile();
+        _profile = PartnerProfile.fromProfileResponse(fresh);
+      } catch (_) {
+        // Keep the updated partner payload if refresh fails.
+      }
+      _error = null;
       return true;
     } on ApiException catch (e) {
-      _error = e.message;
+      if (e.isSessionExpired) {
+        _error = null;
+        return false;
+      }
+      _error = userErrorMessage(e, fallback: 'Could not save profile.');
       return false;
     } catch (e) {
-      _error = 'Could not save profile.';
+      if (isPartnerSessionExpiredError(e)) {
+        _error = null;
+        return false;
+      }
+      _error = userErrorMessage(e, fallback: 'Could not save profile.');
       if (kDebugMode) debugPrint('Profile update error: $e');
       return false;
     } finally {

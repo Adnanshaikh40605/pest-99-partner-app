@@ -42,6 +42,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final bookings = context.watch<BookingsProvider>();
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F4F6),
       appBar: const ProfileAwareTopBar(),
       body: RefreshIndicator(
         onRefresh: () => bookings.refreshListsLight(force: true),
@@ -84,18 +85,102 @@ class _BookingsScreenState extends State<BookingsScreen> {
         100,
       ),
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('New Bookings', style: Theme.of(context).textTheme.headlineSmall),
-            Text('${list.length} requests'),
-          ],
+        if (bookings.isSuspended) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF1F0),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFFCCC7)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Account suspended',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFFCF1322),
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  bookings.suspendMessage.isNotEmpty
+                      ? bookings.suspendMessage
+                      : 'New bookings are hidden until CRM reactivates your account.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFFA8071A),
+                      ),
+                ),
+                if (bookings.suspendReason.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Reason: ${bookings.suspendReason}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF820014),
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.elementGap),
+        ],
+        if (bookings.manualAssignOnly && !bookings.isSuspended) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBE6),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFFE58F)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Office assigns your jobs',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: const Color(0xFFAD6800),
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  bookings.manualAssignMessage.isNotEmpty
+                      ? bookings.manualAssignMessage
+                      : 'New bookings are assigned to you by the office. '
+                          'Check the Accepted tab for your jobs.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF874D00),
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.elementGap),
+        ],
+        Text(
+          'New Bookings',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF111827),
+              ),
         ),
-        const SizedBox(height: AppSpacing.elementGap),
+        const SizedBox(height: AppSpacing.sectionGap),
         if (list.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 48),
-            child: Center(child: Text('No new bookings right now')),
+          Padding(
+            padding: const EdgeInsets.only(top: 48),
+            child: Center(
+              child: Text(
+                bookings.isSuspended
+                    ? 'No bookings available while suspended'
+                    : bookings.manualAssignOnly
+                        ? 'Nothing assigned to you yet'
+                        : 'No new bookings right now',
+              ),
+            ),
           )
         else
           ...list.map((b) {

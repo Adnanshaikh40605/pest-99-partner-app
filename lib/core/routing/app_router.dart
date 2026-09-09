@@ -9,14 +9,13 @@ import '../../features/auth/registration_success_screen.dart';
 import '../../features/booking_detail/booking_detail_screen.dart';
 import '../../features/bookings/bookings_screen.dart';
 import '../../features/completed/completed_screen.dart';
+import '../../features/earnings/earnings_history_screen.dart';
+import '../../features/earnings/leave_requests_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
 import '../../features/profile/profile_screen.dart';
-import '../../features/notifications/notifications_screen.dart';
 import '../../features/referral/refer_client_screen.dart';
 import '../../features/referral/referral_progress_screen.dart';
-import '../../features/force_update/force_update_screen.dart';
 import '../../features/splash/splash_screen.dart';
-import '../../providers/app_update_provider.dart';
 import 'booking_open_args.dart';
 import '../../debug/debug_config.dart';
 import '../../debug/debug_dio_interceptor.dart';
@@ -26,21 +25,18 @@ import '../../shared/widgets/app_bottom_nav.dart';
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 class AppRouter {
-  AppRouter(this._auth, this._appUpdate) {
+  AppRouter(this._auth) {
     router = GoRouter(
       navigatorKey: rootNavigatorKey,
       initialLocation: '/splash',
-      refreshListenable: Listenable.merge([_auth, _appUpdate]),
+      refreshListenable: _auth,
       redirect: _redirect,
       observers: DebugConfig.enabled ? [DebugRouteObserver()] : [],
       routes: [
         GoRoute(
           path: '/splash',
-          pageBuilder: (context, state) => _fadePage(state, const SplashScreen()),
-        ),
-        GoRoute(
-          path: '/force-update',
-          pageBuilder: (context, state) => const NoTransitionPage(child: ForceUpdateScreen()),
+          pageBuilder: (context, state) =>
+              const NoTransitionPage(child: SplashScreen()),
         ),
         GoRoute(
           path: '/login',
@@ -120,9 +116,14 @@ class AppRouter {
           pageBuilder: (context, state) => _slidePage(state, const EditProfileScreen()),
         ),
         GoRoute(
-          path: '/notifications',
+          path: '/earnings',
           parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (context, state) => _slidePage(state, const NotificationsScreen()),
+          pageBuilder: (context, state) => _slidePage(state, const EarningsHistoryScreen()),
+        ),
+        GoRoute(
+          path: '/leave-requests',
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (context, state) => _slidePage(state, const LeaveRequestsScreen()),
         ),
         GoRoute(
           path: '/refer-client',
@@ -142,22 +143,17 @@ class AppRouter {
         ),
         GoRoute(
           path: '/referral-success',
-          redirect: (_, __) => '/referral-progress',
+          redirect: (_, _) => '/referral-progress',
         ),
       ],
     );
   }
 
   final AuthProvider _auth;
-  final AppUpdateProvider _appUpdate;
   late final GoRouter router;
 
   String? _redirect(BuildContext context, GoRouterState state) {
     final path = state.matchedLocation;
-
-    if (_appUpdate.forceUpdateRequired) {
-      return path == '/force-update' ? null : '/force-update';
-    }
 
     if (!_auth.ready) return null;
     final onAuth = path == '/login' ||
@@ -177,17 +173,6 @@ class AppRouter {
     if (onAuth || onSplash || onPending) return '/bookings';
     return null;
   }
-}
-
-CustomTransitionPage<void> _fadePage(GoRouterState state, Widget child) {
-  return CustomTransitionPage(
-    key: state.pageKey,
-    child: child,
-    transitionDuration: const Duration(milliseconds: 300),
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      return FadeTransition(opacity: animation, child: child);
-    },
-  );
 }
 
 CustomTransitionPage<void> _slidePage(GoRouterState state, Widget child) {
