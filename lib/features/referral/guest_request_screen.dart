@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/user_error.dart';
+import '../../services/auth_service.dart';
 import '../../services/referral_service.dart';
 import '../../shared/widgets/app_snackbar.dart';
 import '../../shared/widgets/app_text_field.dart';
@@ -59,9 +60,13 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
 
   Future<void> _submit() async {
     final name = _name.text.trim();
-    final mobile = _mobile.text.trim();
+    final mobile = AuthService.normalizeMobile(_mobile.text);
     if (name.isEmpty || mobile.isEmpty) {
       AppSnackBar.error(context, 'Please enter client name and mobile number.');
+      return;
+    }
+    if (mobile.length != 10) {
+      AppSnackBar.error(context, 'Please enter a valid 10-digit mobile number.');
       return;
     }
     setState(() => _saving = true);
