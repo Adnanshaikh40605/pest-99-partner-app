@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:go_router/go_router.dart';
@@ -30,7 +31,11 @@ Future<void> main() async {
 
 Future<void> _startApp() async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  // Native splash is mobile-only (web: false in pubspec). Calling preserve()
+  // defers the first frame forever on web because SplashScreen never remove()s.
+  if (!kIsWeb) {
+    FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  }
 
   final sessionCoordinator = SessionCoordinator();
   final api = ApiClient(sessionCoordinator: sessionCoordinator);

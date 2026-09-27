@@ -25,12 +25,14 @@ class AuthService {
       },
       auth: false,
     );
-    final access = data['access'] as String?;
-    final refresh = data['refresh'] as String?;
-    if (access == null || access.isEmpty) {
+    // Use toString() — web JSON maps can yield non-Dart-String values that
+    // fail a hard `as String?` cast (TypeError → misleading parse error UI).
+    final access = data['access']?.toString();
+    final refresh = data['refresh']?.toString();
+    if (access == null || access.isEmpty || access == 'null') {
       throw ApiException('Login failed — no token received.');
     }
-    if (refresh == null || refresh.isEmpty) {
+    if (refresh == null || refresh.isEmpty || refresh == 'null') {
       throw ApiException('Login failed — no refresh token received.');
     }
     await _api.saveSessionTokens(access: access, refresh: refresh);
