@@ -108,6 +108,12 @@ class PushNotificationService {
     _onOpenBooking!(id, data);
   }
 
+  /// Put a tap back in the queue when splash or login would replace the route.
+  void holdPending(int bookingId, Map<String, dynamic> data) {
+    _pendingBookingId = bookingId;
+    _pendingData = Map<String, dynamic>.from(data);
+  }
+
   Future<bool> requestPermission() async {
     if (kIsWeb) return false;
     await requestPartnerNotificationPermission();

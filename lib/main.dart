@@ -42,13 +42,16 @@ Future<void> _startApp() async {
       api: notificationApi,
       onOpenBooking: (id, data) {
         final router = _routerHolder.router;
-        if (router != null) {
-          NotificationNavigation.openBookingFromPush(
-            id,
-            router: router,
-            data: data,
-          );
+        if (router == null || !_bookingRouteReady(router)) {
+          // Splash's go('/bookings') would replace a detail route pushed now.
+          PushNotificationService.instance.holdPending(id, data);
+          return;
         }
+        NotificationNavigation.openBookingFromPush(
+          id,
+          router: router,
+          data: data,
+        );
       },
     );
   }));
@@ -76,4 +79,16 @@ Future<void> _startApp() async {
 
 class _RouterHolder {
   GoRouter? router;
+}
+
+/// Home shell only. Auth screens replace the whole stack, which drops the booking.
+bool _bookingRouteReady(GoRouter router) {
+  const blocked = {
+    '/splash',
+    '/login',
+    '/register',
+    '/registration-success',
+    '/pending-approval',
+  };
+  return !blocked.contains(router.state.uri.path);
 }

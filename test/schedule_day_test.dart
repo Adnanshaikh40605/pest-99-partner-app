@@ -58,6 +58,21 @@ void main() {
       );
     });
 
+    test('late-night UTC now does not drop IST tomorrow off both tabs', () {
+      // Now is 28 Sep 2026 02:00 IST (still 27 Sep 20:30 UTC).
+      // IST tomorrow 10:00 is 29 Sep 04:30 UTC — two UTC calendar days
+      // later, so a UTC date bucket misses both Today and Tomorrow.
+      final lateUtc = DateTime.utc(2026, 9, 27, 20, 30);
+      expect(
+        ScheduleDay.bucketFor('2026-09-28T04:30:00Z', now: lateUtc),
+        'today',
+      );
+      expect(
+        ScheduleDay.bucketFor('2026-09-29T04:30:00Z', now: lateUtc),
+        'tomorrow',
+      );
+    });
+
     test('a morning IST job is Today even when UTC still says yesterday', () {
       // 27 Sep 2026 00:30 IST == 26 Sep 2026 19:00 UTC.
       expect(

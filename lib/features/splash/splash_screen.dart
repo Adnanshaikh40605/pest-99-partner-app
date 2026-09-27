@@ -66,6 +66,9 @@ class _SplashScreenState extends State<SplashScreen> {
     }
     context.go('/bookings');
     PushNotificationService.instance.processPendingNavigation();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      PushNotificationService.instance.processPendingNavigation();
+    });
   }
 
   Future<void> _warmSessionInBackground(AuthProvider auth) async {
