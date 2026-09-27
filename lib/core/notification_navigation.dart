@@ -40,26 +40,34 @@ class NotificationNavigation {
   }) async {
     final ctx = rootNavigatorKey.currentContext;
     final openArgs = BookingOpenArgs.fromNotification();
+    var openAccepted = false;
 
-    if (ctx != null) {
+    // The list endpoint can omit this job (date window, city, or a refresh
+    // that raced the push). Load it by id and point Today/Tomorrow at its
+    // Asia/Kolkata date before opening the screen.
+    if (ctx != null && ctx.mounted) {
       try {
-        await ctx.read<BookingsProvider>().refreshListsLight();
+        await ctx.read<BookingsProvider>().revealNotificationBooking(bookingId);
       } catch (e, st) {
-        debugPrint('[NotificationNavigation] list refresh failed: $e\n$st');
+        debugPrint('[NotificationNavigation] reveal booking #$bookingId failed: $e\n$st');
       }
-
-      if (!ctx.mounted) {
-        _pushBookingRoute(router, bookingId, openArgs);
-        return;
-      }
-
-      final isNewBooking = data != null && isNewBookingPush(data);
-      if (isNewBooking) {
-        router.go('/bookings');
-        await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (ctx.mounted) {
+        openAccepted = ctx.read<BookingsProvider>().takeNotificationOpensAccepted();
       }
     }
 
+    if (kDebugMode) {
+      debugPrint(
+        '[NotificationNavigation] open booking #$bookingId '
+        'type=${data?['type']} accepted=$openAccepted',
+      );
+    }
+    if (openAccepted) {
+      router.go('/accepted');
+    } else {
+      router.go('/bookings');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 80));
     _pushBookingRoute(router, bookingId, openArgs);
   }
 

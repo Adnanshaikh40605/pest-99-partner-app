@@ -52,14 +52,25 @@ class _BookingsScreenState extends State<BookingsScreen> {
     if (bookings.manualAssignOnly) {
       return 'Nothing assigned to you yet';
     }
-    return isToday
-        ? 'No bookings for today'
-        : 'No bookings for tomorrow';
+    return isToday ? 'No bookings for today' : 'No bookings for tomorrow';
+  }
+
+  void _applyNotificationDayTab(BookingsProvider bookings) {
+    final hinted = bookings.notificationDayTab;
+    if (hinted == null) return;
+    if (hinted != _dayTabIndex && hinted >= 0 && hinted <= 1) {
+      _dayTabIndex = hinted;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      bookings.clearNotificationDayTab(hinted);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final bookings = context.watch<BookingsProvider>();
+    _applyNotificationDayTab(bookings);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
@@ -158,14 +169,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 color: const Color(0xFF111827),
               ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          "Switch between Today and Tomorrow to see that day's jobs.",
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF6B7280),
-              ),
-        ),
-        const SizedBox(height: AppSpacing.sectionGap),
+        const SizedBox(height: AppSpacing.elementGap),
         SegmentedTabs(
           labels: [
             'Today (${sections.today.length})',

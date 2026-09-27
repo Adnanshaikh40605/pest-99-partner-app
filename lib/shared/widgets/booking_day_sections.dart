@@ -17,12 +17,15 @@ class BookingDaySections {
   final List<api.PartnerBooking> tomorrow;
   final List<api.PartnerBooking> later;
 
-  factory BookingDaySections.from(List<api.PartnerBooking> raw) {
+  factory BookingDaySections.from(
+    List<api.PartnerBooking> raw, {
+    DateTime? now,
+  }) {
     final today = <api.PartnerBooking>[];
     final tomorrow = <api.PartnerBooking>[];
     final later = <api.PartnerBooking>[];
     for (final b in raw) {
-      final ui = BookingMapper.fromPartner(b);
+      final ui = BookingMapper.fromPartner(b, now: now);
       switch (ui.dayBucket) {
         case 'today':
           today.add(b);
