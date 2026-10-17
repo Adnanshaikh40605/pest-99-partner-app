@@ -82,3 +82,28 @@ class ScheduleDay {
     return 'later';
   }
 }
+
+/// Today / Tomorrow selection for New Bookings.
+///
+/// A notification hint is applied once per [serial]. Rebuilding while the
+/// provider still holds that hint must not undo a tap on the other tab.
+class NewBookingDayTab {
+  int index = 0;
+  int appliedSerial = -1;
+
+  bool select(int next) {
+    if (next < 0 || next > 1 || next == index) return false;
+    index = next;
+    return true;
+  }
+
+  /// Returns true when the visible tab changed.
+  bool applyHint(int? hint, int serial) {
+    if (appliedSerial == serial) return false;
+    appliedSerial = serial;
+    if (hint == null || hint < 0 || hint > 1) return false;
+    if (index == hint) return false;
+    index = hint;
+    return true;
+  }
+}

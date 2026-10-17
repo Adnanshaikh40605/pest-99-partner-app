@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pest_99_partner_app/core/constants/notification_channels.dart';
 import 'package:pest_99_partner_app/core/mappers/booking_mapper.dart';
+import 'package:pest_99_partner_app/core/notification_open_plan.dart';
 import 'package:pest_99_partner_app/core/schedule_day.dart';
 import 'package:pest_99_partner_app/models/booking.dart';
 import 'package:pest_99_partner_app/shared/widgets/booking_day_sections.dart';
@@ -102,6 +103,28 @@ void main() {
       );
       expect(ScheduleDay.bucketFor('not-a-date', now: morningIst), isNull);
     });
+
+    test('job 3860 on 28 Sep 15:28 IST is Later, not a shifted today', () {
+      // Screenshot time. Stored instant is 2026-09-30T07:30:00Z == 30 Sep 13:00 IST.
+      // Created the same afternoon (28 Sep 12:56 IST) with time_slot 01:00 PM,
+      // so the calendar date is Wednesday, two days out — the Later section.
+      final screenshotIst = DateTime.utc(2026, 9, 28, 9, 58);
+      expect(
+        ScheduleDay.bucketFor('2026-09-30T07:30:00+00:00', now: screenshotIst),
+        'later',
+      );
+      expect(
+        ScheduleDay.bucketFor('2026-09-30T13:00:00+05:30', now: screenshotIst),
+        'later',
+      );
+      final booking = BookingMapper.fromPartner(
+        _job(3860, '2026-09-30T07:30:00+00:00'),
+        now: screenshotIst,
+      );
+      expect(booking.dayBucket, 'later');
+      expect(booking.dateLabel, 'Wed, 30 Sep');
+      expect(booking.timeLabel, '1:00 PM');
+    });
   });
 
   group('New Bookings day sections', () {
@@ -151,6 +174,65 @@ void main() {
         bookingIdFromNotificationData({'type': 'new_booking'}),
         isNull,
       );
+    });
+
+    test('3860 opens the booking page and scrolls Later instead of Today', () {
+      final screenshotIst = DateTime.utc(2026, 9, 28, 9, 58);
+      final plan = NotificationOpenPlan.fromNotificationData(
+        {
+          'type': 'new_booking',
+          'booking_id': '3860',
+          'schedule_datetime': '2026-09-30T07:30:00+00:00',
+        },
+        now: screenshotIst,
+      );
+      expect(plan, isNotNull);
+      expect(plan!.detailPath, '/booking/3860');
+      expect(plan.dayTabIndex, isNull);
+      expect(plan.scrollToCard, isFalse);
+      expect(plan.bucket, 'later');
+      expect(canPushBookingDetail('/bookings'), isTrue);
+      expect(canPushBookingDetail('/splash'), isFalse);
+    });
+
+    test('a tomorrow payload selects the Tomorrow tab', () {
+      final plan = NotificationOpenPlan.fromNotificationData(
+        {
+          'type': 'new_booking',
+          'booking_id': '10',
+          'schedule_datetime': '2026-09-28T09:00:00+05:30',
+        },
+        now: morningIst,
+      );
+      expect(plan!.dayTabIndex, 1);
+      expect(plan.scrollToCard, isFalse);
+      expect(plan.detailPath, '/booking/10');
+    });
+  });
+
+  group('Today Tomorrow tab controller', () {
+    test('Tomorrow tap stays selected after a consumed Today hint', () {
+      final tabs = NewBookingDayTab();
+      expect(tabs.applyHint(0, 1), isFalse);
+      expect(tabs.index, 0);
+      expect(tabs.select(1), isTrue);
+      expect(tabs.applyHint(0, 1), isFalse);
+      expect(tabs.index, 1);
+    });
+
+    test('a later notification does not force the Today tab', () {
+      final tabs = NewBookingDayTab();
+      expect(tabs.select(1), isTrue);
+      expect(tabs.applyHint(null, 2), isFalse);
+      expect(tabs.index, 1);
+    });
+
+    test('a newer notification serial selects that job\'s day tab', () {
+      final tabs = NewBookingDayTab();
+      tabs.applyHint(0, 1);
+      tabs.select(1);
+      expect(tabs.applyHint(0, 4), isTrue);
+      expect(tabs.index, 0);
     });
   });
 }

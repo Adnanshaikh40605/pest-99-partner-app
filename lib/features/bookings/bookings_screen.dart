@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/booking.dart';
+import '../../core/schedule_day.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../models/booking.dart' as api;
 import '../../providers/bookings_provider.dart';
@@ -24,8 +25,12 @@ class BookingsScreen extends StatefulWidget {
 
 class _BookingsScreenState extends State<BookingsScreen> {
   Timer? _syncTimer;
-  /// 0 = Today, 1 = Tomorrow
-  int _dayTabIndex = 0;
+  final NewBookingDayTab _dayTab = NewBookingDayTab();
+  final Map<int, GlobalKey> _cardKeys = {};
+  final ScrollController _listController = ScrollController();
+  int? _scrollQueuedFor;
+  int _scrollAttempts = 0;
+  int _focusListVersion = -1;
 
   @override
   void initState() {
@@ -39,10 +44,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
   @override
   void dispose() {
     _syncTimer?.cancel();
+    _listController.dispose();
     super.dispose();
   }
 
-  String _emptyMessage(BookingsProvider bookings, {required bool isToday}) {
+  GlobalKey _cardKey(int id) => _cardKeys.putIfAbsent(id, GlobalKey.new);
+
+  String _emptyMessage(BookingsProvider bookings) {
     if (bookings.isSuspended) {
       return 'No bookings available while suspended';
     }
@@ -52,19 +60,56 @@ class _BookingsScreenState extends State<BookingsScreen> {
     if (bookings.manualAssignOnly) {
       return 'Nothing assigned to you yet';
     }
-    return isToday ? 'No bookings for today' : 'No bookings for tomorrow';
+    return switch (_dayTab.index) {
+      1 => 'No bookings for tomorrow',
+      _ => 'No bookings for today',
+    };
   }
 
   void _applyNotificationDayTab(BookingsProvider bookings) {
-    final hinted = bookings.notificationDayTab;
-    if (hinted == null) return;
-    if (hinted != _dayTabIndex && hinted >= 0 && hinted <= 1) {
-      _dayTabIndex = hinted;
+    _dayTab.applyHint(bookings.notificationDayTab, bookings.notificationHintSerial);
+  }
+
+  void _scheduleFocusScroll(int? id, int listVersion) {
+    if (id == null) return;
+    if (_scrollQueuedFor == id && _focusListVersion == listVersion) return;
+    _scrollQueuedFor = id;
+    _focusListVersion = listVersion;
+    _scrollAttempts = 0;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealFocusedCard(id));
+  }
+
+  void _revealFocusedCard(int id) {
+    if (!mounted || _scrollQueuedFor != id) return;
+    final target = _cardKeys[id]?.currentContext;
+    if (target == null) {
+      _scrollAttempts++;
+      if (_scrollAttempts > 90) return;
+      // ListView only mounts children near the viewport. A Later card past
+      // that range never gets a context, so waiting cannot scroll to it.
+      _advanceListTowardUnbuiltCard();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _revealFocusedCard(id));
+      return;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      bookings.clearNotificationDayTab(hinted);
-    });
+    _scrollAttempts = 0;
+    Scrollable.ensureVisible(
+      target,
+      alignment: 0.08,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
+
+  /// Walk the list down until the focused card is built. Consecutive steps
+  /// overlap, so a card is not skipped between jumps.
+  void _advanceListTowardUnbuiltCard() {
+    if (!_listController.hasClients) return;
+    final position = _listController.position;
+    if (!position.hasContentDimensions) return;
+    final next = (position.pixels + position.viewportDimension * 0.6)
+        .clamp(0.0, position.maxScrollExtent);
+    if (next <= position.pixels + 1) return;
+    position.jumpTo(next);
   }
 
   @override
@@ -91,7 +136,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           SizedBox(
-            height: MediaQuery.sizeOf(context).height * 0.55,
+            height: MediaQuery.sizeOf(context).height * 0.45,
             child: offline
                 ? NoInternetView(
                     onRetry: () => bookings.refreshListsLight(force: true),
@@ -106,10 +151,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     final sections = BookingDaySections.from(bookings.available);
-    final isTodayTab = _dayTabIndex == 0;
-    final dayList = isTodayTab ? sections.today : sections.tomorrow;
+    final selected = switch (_dayTab.index) {
+      1 => sections.tomorrow,
+      _ => sections.today,
+    };
+    _scheduleFocusScroll(bookings.focusBookingId, bookings.available.length);
 
     return ListView(
+      controller: _listController,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenEdge,
@@ -175,30 +224,19 @@ class _BookingsScreenState extends State<BookingsScreen> {
             'Today (${sections.today.length})',
             'Tomorrow (${sections.tomorrow.length})',
           ],
-          selectedIndex: _dayTabIndex,
+          selectedIndex: _dayTab.index,
           onChanged: (index) {
-            if (index == _dayTabIndex) return;
-            setState(() => _dayTabIndex = index);
+            if (!_dayTab.select(index)) return;
+            setState(() {});
           },
         ),
-        const SizedBox(height: AppSpacing.sectionGap),
+        const SizedBox(height: AppSpacing.elementGap),
         ...buildSingleDayBookingChildren(
-          bookings: dayList,
-          emptyMessage: _emptyMessage(bookings, isToday: isTodayTab),
+          bookings: selected,
+          emptyMessage: _emptyMessage(bookings),
+          itemKey: (b) => _cardKey(b.id),
           cardBuilder: (b, ui) => _availableCard(context, bookings, b, ui),
         ),
-        // Keep beyond-tomorrow jobs visible, but outside the two day tabs.
-        if (sections.later.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.sectionGap),
-          BookingSectionHeader(
-            title: 'Later',
-            count: sections.later.length,
-          ),
-          ...buildSingleDayBookingChildren(
-            bookings: sections.later,
-            cardBuilder: (b, ui) => _availableCard(context, bookings, b, ui),
-          ),
-        ],
       ],
     );
   }

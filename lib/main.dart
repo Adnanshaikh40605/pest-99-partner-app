@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'app.dart';
 import 'core/api_client.dart';
 import 'core/notification_navigation.dart';
+import 'core/notification_open_plan.dart';
 import 'core/routing/app_router.dart';
 import 'core/session_coordinator.dart';
 import 'debug/debug_bootstrap.dart';
@@ -31,6 +32,11 @@ Future<void> main() async {
 
 Future<void> _startApp() async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  // Camera photos were decoded at full size and pushed low-memory phones
+  // into Play's "bad behavior" memory bucket. Cap the decoded-image cache.
+  final imageCache = PaintingBinding.instance.imageCache;
+  imageCache.maximumSize = 80;
+  imageCache.maximumSizeBytes = 32 * 1024 * 1024;
   // Native splash is mobile-only (web: false in pubspec). Calling preserve()
   // defers the first frame forever on web because SplashScreen never remove()s.
   if (!kIsWeb) {
@@ -86,14 +92,7 @@ class _RouterHolder {
   GoRouter? router;
 }
 
-/// Home shell only. Auth screens replace the whole stack, which drops the booking.
+/// Home shell or an already-open detail page. Auth screens replace the stack.
 bool _bookingRouteReady(GoRouter router) {
-  const blocked = {
-    '/splash',
-    '/login',
-    '/register',
-    '/registration-success',
-    '/pending-approval',
-  };
-  return !blocked.contains(router.state.uri.path);
+  return canPushBookingDetail(router.state.uri.path);
 }

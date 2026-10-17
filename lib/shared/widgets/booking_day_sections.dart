@@ -125,16 +125,30 @@ List<Widget> buildDaySectionedBookingChildren({
 }
 
 /// Builds list children for a single day bucket (no section header).
+///
+/// [hideEmpty] drops the empty sentence. Use it when Later still has jobs:
+/// "No bookings for today" above those cards reads as a failed list.
 List<Widget> buildSingleDayBookingChildren({
   required List<api.PartnerBooking> bookings,
   required Widget Function(api.PartnerBooking raw, Booking ui) cardBuilder,
   String emptyMessage = 'No bookings',
+  bool hideEmpty = false,
+  Key? Function(api.PartnerBooking booking)? itemKey,
 }) {
   if (bookings.isEmpty) {
+    if (hideEmpty) return const [];
     return [
       Padding(
+        key: const Key('single-day-empty'),
         padding: const EdgeInsets.only(top: 48),
-        child: Center(child: Text(emptyMessage)),
+        child: Text(
+          emptyMessage,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Color(0xFF6B7280),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     ];
   }
@@ -142,6 +156,7 @@ List<Widget> buildSingleDayBookingChildren({
   return [
     for (final raw in bookings)
       Padding(
+        key: itemKey?.call(raw),
         padding: const EdgeInsets.only(bottom: AppSpacing.elementGap),
         child: cardBuilder(raw, BookingMapper.fromPartner(raw)),
       ),

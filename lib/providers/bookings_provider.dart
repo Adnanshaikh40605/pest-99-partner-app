@@ -48,7 +48,17 @@ class BookingsProvider extends ChangeNotifier {
   final Map<int, PartnerBooking> _pinnedAvailable = {};
 
   /// 0 = Today, 1 = Tomorrow. Set when a notification booking is revealed.
+  ///
+  /// Null means the job is not on those tabs (Later, or the date is unknown).
   int? notificationDayTab;
+
+  /// Bumps every time a notification asks the list to focus a booking.
+  /// The screen applies each serial once so a rebuild cannot undo a tab tap.
+  int notificationHintSerial = 0;
+
+  /// Card to scroll into view. Set for Later jobs so they are not left under
+  /// an empty Today tab.
+  int? focusBookingId;
 
   /// True when the tapped booking is already accepted and belongs on that tab.
   bool notificationOpensAccepted = false;
@@ -172,6 +182,20 @@ class BookingsProvider extends ChangeNotifier {
     notificationDayTab = null;
   }
 
+  /// Point Today/Tomorrow or the Later list at a notification before the
+  /// detail route opens. The payload schedule is enough; the API refresh
+  /// confirms it afterwards.
+  void showNotificationBooking({
+    required int id,
+    int? dayTab,
+    required bool scrollToCard,
+  }) {
+    notificationDayTab = dayTab;
+    notificationHintSerial++;
+    focusBookingId = scrollToCard ? id : null;
+    notifyListeners();
+  }
+
   bool takeNotificationOpensAccepted() {
     final open = notificationOpensAccepted;
     notificationOpensAccepted = false;
@@ -199,7 +223,6 @@ class BookingsProvider extends ChangeNotifier {
           debugPrint('[Bookings] notification booking #$id not loaded: $e');
         }
         notificationOpensAccepted = false;
-        notificationDayTab = null;
         return;
       }
     }
@@ -215,7 +238,7 @@ class BookingsProvider extends ChangeNotifier {
     notificationOpensAccepted = accepted && !closed;
     if (closed) {
       _pinnedAvailable.remove(id);
-      notificationDayTab = null;
+      focusBookingId = null;
       notifyListeners();
       return;
     }
@@ -226,12 +249,16 @@ class BookingsProvider extends ChangeNotifier {
         this.accepted = [booking, ...this.accepted];
       }
       notificationDayTab = null;
+      focusBookingId = null;
     } else {
       _pinnedAvailable[id] = booking;
       if (!available.any((b) => b.id == id)) {
         available = [booking, ...available];
       }
-      notificationDayTab = _dayTabFor(booking);
+      final dayTab = _dayTabFor(booking);
+      notificationDayTab = dayTab;
+      notificationHintSerial++;
+      focusBookingId = dayTab == null ? null : id;
     }
     notifyListeners();
   }
@@ -251,6 +278,8 @@ class BookingsProvider extends ChangeNotifier {
         return 0;
       case 'tomorrow':
         return 1;
+      case 'later':
+        return null;
       default:
         return null;
     }

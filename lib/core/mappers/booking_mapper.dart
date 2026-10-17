@@ -16,6 +16,8 @@ class BookingMapper {
       pestType: b.serviceType,
       // Short locality + city for New Bookings cards (never full address).
       area: shortAreaLabel(b),
+      locality: (b.localityName ?? '').trim().isEmpty ? null : b.localityName!.trim(),
+      cityName: (b.cityName ?? '').trim().isEmpty ? null : b.cityName!.trim(),
       dateLabel: schedule.dateLabel,
       timeLabel: b.timeSlot ?? schedule.timeLabel,
       customerName: b.clientName,
@@ -60,7 +62,16 @@ class BookingMapper {
       return '$locality, $city';
     }
     if (locality.isNotEmpty) return locality;
-    if (city.isNotEmpty) return city;
+    if (city.isNotEmpty) {
+      final raw = (b.locationDisplay ?? b.clientAddress ?? '').trim();
+      if (raw.isNotEmpty) {
+        final guessed = _guessShortArea(raw);
+        if (guessed != '—' && guessed.toLowerCase() != city.toLowerCase()) {
+          return guessed;
+        }
+      }
+      return city;
+    }
 
     // Fallback: try to peel a locality,city from a long address string.
     final raw = (b.locationDisplay ?? b.clientAddress ?? '').trim();

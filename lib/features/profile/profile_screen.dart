@@ -187,6 +187,7 @@ class _ProfileHeader extends StatelessWidget {
                             avatarUrl!,
                             width: avatarSize,
                             height: avatarSize,
+                            cacheWidth: (avatarSize * MediaQuery.devicePixelRatioOf(context)).round(),
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => _InitialAvatar(initials: initials),
                           )

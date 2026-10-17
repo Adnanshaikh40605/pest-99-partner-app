@@ -60,6 +60,30 @@ class AuthService {
     );
   }
 
+  Future<Map<String, dynamic>> sendPasswordOtp(String mobile) {
+    return _api.post(
+      ApiConfig.passwordOtp,
+      body: {'mobile': normalizeMobile(mobile)},
+      auth: false,
+    );
+  }
+
+  Future<void> resetPassword({
+    required String mobile,
+    required String otp,
+    required String newPassword,
+  }) async {
+    await _api.post(
+      ApiConfig.passwordReset,
+      body: {
+        'mobile': normalizeMobile(mobile),
+        'otp': otp.replaceAll(RegExp(r'\D'), ''),
+        'new_password': newPassword,
+      },
+      auth: false,
+    );
+  }
+
   Future<bool> isAppApproved() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_approvedKey) ?? false;
